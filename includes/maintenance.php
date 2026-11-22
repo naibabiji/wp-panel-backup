@@ -62,16 +62,20 @@ function maintenance_admin_access() {
 		return;
 	}
 	if ( current_user_can( 'manage_options' ) ) {
-		if ( 'tools.php' === $pagenow && 'wp-panel-backup' === ( $_GET['page'] ?? '' ) ) {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only page selection during maintenance.
+		if ( 'tools.php' === $pagenow && 'wp-panel-backup' === sanitize_key( wp_unslash( $_GET['page'] ?? '' ) ) ) {
 			return;
 		}
-		if ( 'admin-post.php' === $pagenow && in_array( $_POST['action'] ?? '', array( 'wp_panel_backup_control', 'wp_panel_backup_download' ), true ) ) {
-			return;
+		$method = sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ?? '' ) );
+		if ( 'POST' === $method ) {
+			// phpcs:ignore WordPress.Security.NonceVerification.Missing -- This only routes the request. The handlers verify the nonce before doing any work.
+			$action = sanitize_key( wp_unslash( $_POST['action'] ?? '' ) );
+			if ( ( 'admin-post.php' === $pagenow && in_array( $action, array( 'wp_panel_backup_control', 'wp_panel_backup_download' ), true ) )
+				|| ( wp_doing_ajax() && 'wp_panel_backup_advance' === $action ) ) {
+				return;
+			}
 		}
-		if ( wp_doing_ajax() && 'wp_panel_backup_advance' === ( $_POST['action'] ?? '' ) ) {
-			return;
-		}
-		if ( 'GET' === ( $_SERVER['REQUEST_METHOD'] ?? '' ) && ! wp_doing_ajax() ) {
+		if ( 'GET' === $method && ! wp_doing_ajax() ) {
 			wp_safe_redirect( backup_page_url() );
 			exit;
 		}

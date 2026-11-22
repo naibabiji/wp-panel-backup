@@ -8,6 +8,7 @@
 	const panel = document.getElementById('wp-panel-backup-progress');
 	const maintenance = document.getElementById('wp-panel-backup-maintenance');
 	const field = (name) => panel.querySelector('[data-progress="' + name + '"]');
+	const spinner = field('spinner');
 	const resume = form.querySelector('button');
 	const cancel = panel.querySelector('input[value="cancel"]').form;
 	let timer;
@@ -24,6 +25,7 @@
 	}
 
 	function pause(message) {
+		spinner.hidden = true;
 		update('hint', __('备份已暂停，可以从已保存的进度继续。', 'wp-panel-backup'));
 		update('error', message);
 		resume.textContent = __('继续备份', 'wp-panel-backup');
@@ -61,6 +63,7 @@
 			update('detail', progress.detail);
 			update('packages', progress.packages);
 			update('error', progress.error);
+			spinner.hidden = !progress.running;
 			if (progress.running) {
 				timer = window.setTimeout(advance, 300);
 			} else if (progress.listUrl) {
@@ -77,6 +80,7 @@
 		} finally {
 			pending = false;
 			if (queuedAction && !leaving) {
+				spinner.hidden = true;
 				queuedAction.requestSubmit();
 			}
 		}
@@ -84,6 +88,7 @@
 
 	function run() {
 		form.hidden = true;
+		spinner.hidden = false;
 		update('error', '');
 		update('hint', __('备份正在进行。请保持此页打开，关闭后可返回继续。', 'wp-panel-backup'));
 		timer = window.setTimeout(advance, 300);
@@ -102,6 +107,8 @@
 				queuedAction.querySelector('[type="submit"]').disabled = true;
 				update('hint', __('当前批次结束后将执行此操作。', 'wp-panel-backup'));
 			}
+		} else {
+			spinner.hidden = true;
 		}
 	}
 	cancel.addEventListener('submit', afterBatch);

@@ -18,7 +18,7 @@ function enqueue_backup_assets( $hook ) {
 	}
 	$plugin = dirname( __DIR__ ) . '/wp-panel-backup.php';
 	wp_enqueue_style( 'wp-panel-backup-admin', plugins_url( 'assets/admin.css', $plugin ), array(), (string) filemtime( dirname( $plugin ) . '/assets/admin.css' ) );
-	if ( 'backups' !== ( $_GET['view'] ?? '' ) ) {
+	if ( ! backup_list_view() ) {
 		wp_enqueue_script( 'wp-panel-backup-advance', plugins_url( 'assets/advance.js', $plugin ), array( 'wp-i18n' ), (string) filemtime( dirname( $plugin ) . '/assets/advance.js' ), true );
 		wp_set_script_translations( 'wp-panel-backup-advance', 'wp-panel-backup' );
 	}
@@ -31,8 +31,13 @@ function backup_plugin_action_links( $links ) {
 	return $links;
 }
 
+function backup_list_view() {
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- The view parameter only selects a page to display.
+	return 'backups' === sanitize_key( wp_unslash( $_GET['view'] ?? '' ) );
+}
+
 function render_backup_page() {
-	$list = 'backups' === ( $_GET['view'] ?? '' );
+	$list = backup_list_view();
 	?>
 	<div class="wrap wp-panel-backup">
 		<header class="wppb-header">
@@ -59,7 +64,7 @@ function backup_page_url( $list = false ) {
 }
 
 function advance_export_ajax() {
-	if ( ! current_user_can( 'manage_options' ) || 'POST' !== ( $_SERVER['REQUEST_METHOD'] ?? '' )
+	if ( ! current_user_can( 'manage_options' ) || 'POST' !== sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ?? '' ) )
 		|| ! check_ajax_referer( 'wp-panel-backup-control', '_wp_panel_backup_control_nonce', false ) ) {
 		wp_send_json_error( array( 'message' => __( '无法验证备份请求。请重新打开备份页面后继续。', 'wp-panel-backup' ) ), 403 );
 	}
@@ -105,13 +110,14 @@ function export_progress( $job ) {
 }
 
 function control_export() {
-	if ( ! current_user_can( 'manage_options' ) || 'POST' !== ( $_SERVER['REQUEST_METHOD'] ?? '' ) ) {
+	if ( ! current_user_can( 'manage_options' ) || 'POST' !== sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ?? '' ) ) ) {
 		wp_die( esc_html__( '你没有操作备份任务的权限。', 'wp-panel-backup' ), '', array( 'response' => 403 ) );
 	}
 	check_admin_referer( 'wp-panel-backup-control', '_wp_panel_backup_control_nonce' );
 	$operation = sanitize_key( wp_unslash( $_POST['operation'] ?? '' ) );
 	$id = sanitize_key( wp_unslash( $_POST['job'] ?? '' ) );
 	$mode = sanitize_key( wp_unslash( $_POST['mode'] ?? 'normal' ) );
+	// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- The entire value must match decimal digits before conversion and the size allowlist.
 	$submitted_payload = wp_unslash( $_POST['zip_payload_mib'] ?? (string) DEFAULT_ZIP_PAYLOAD_MIB );
 	$zip_payload_mib = is_string( $submitted_payload ) && preg_match( '/^[0-9]+$/D', $submitted_payload ) ? (int) $submitted_payload : 0;
 	$has_settings = isset( $_POST['directory_exclusion_options'] );
@@ -127,7 +133,7 @@ function control_export() {
 	if ( $job && export_is_running( $job ) ) {
 		$args['run'] = '1';
 	}
-	$list = ( $job && 'complete' === $job['phase'] ) || 'backups' === ( $_POST['return_view'] ?? '' );
+	$list = ( $job && 'complete' === $job['phase'] ) || 'backups' === sanitize_key( wp_unslash( $_POST['return_view'] ?? '' ) );
 	wp_safe_redirect( add_query_arg( $args, backup_page_url( $list ) ), 303 );
 	exit;
 }
@@ -344,7 +350,8 @@ function render_backup_maintenance( $mode, $enabled ) {
 }
 
 function render_active_export( $job, $modes ) {
-	$run = ( $_GET['job'] ?? '' ) === $job['id'] && '1' === ( $_GET['run'] ?? '' );
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- These parameters select the rendered state. Each AJAX batch has its own nonce check.
+	$run = $job['id'] === sanitize_key( wp_unslash( $_GET['job'] ?? '' ) ) && '1' === sanitize_key( wp_unslash( $_GET['run'] ?? '' ) );
 	$progress = export_progress( $job );
 	?>
 	<section class="wppb-card wppb-progress" id="wp-panel-backup-progress" data-phase="<?php echo esc_attr( $progress['phase'] ); ?>">
@@ -353,7 +360,10 @@ function render_active_export( $job, $modes ) {
 			<span class="wppb-meta"><?php echo esc_html( $modes[ $job['mode'] ?? 'normal' ] ); ?></span>
 		</div>
 		<div class="wppb-progress-status" role="status" aria-atomic="true">
-			<p class="wppb-phase"><span data-progress="label"><?php echo esc_html( $progress['label'] ); ?></span></p>
+			<p class="wppb-phase">
+				<span class="wppb-progress-spinner" data-progress="spinner" aria-hidden="true" hidden></span>
+				<span data-progress="label"><?php echo esc_html( $progress['label'] ); ?></span>
+			</p>
 			<p class="wppb-meta" data-progress="detail" <?php if ( '' === $progress['detail'] ) : ?>hidden<?php endif; ?>><?php echo esc_html( $progress['detail'] ); ?></p>
 			<p class="wppb-meta" data-progress="packages"><?php echo esc_html( $progress['packages'] ); ?></p>
 		</div>
@@ -391,6 +401,8 @@ function render_control_button( $operation, $label, $id = '', $list = false ) {
 }
 
 function render_completed_exports( $jobs, $modes ) {
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- This parameter selects which completed backup to expand.
+	$selected_job = sanitize_key( wp_unslash( $_GET['job'] ?? '' ) );
 	$available = array();
 	$expired = false;
 	foreach ( $jobs as $job ) {
@@ -419,7 +431,7 @@ function render_completed_exports( $jobs, $modes ) {
 			<?php foreach ( $available as $job ) :
 			$date = wp_date( 'Y-m-d H:i', $job['completed_at'] );
 			$bytes = array_sum( array_column( $job['packages'], 'size' ) );
-			$open = count( $available ) === 1 || ( $_GET['job'] ?? '' ) === $job['id'];
+			$open = count( $available ) === 1 || $selected_job === $job['id'];
 			?>
 			<details class="wppb-backup" <?php if ( $open ) : ?>open<?php endif; ?>>
 				<summary>

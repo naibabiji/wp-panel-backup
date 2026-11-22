@@ -196,7 +196,31 @@
 }
 
 .wp-panel-backup .wppb-phase {
+	display: flex;
+	align-items: center;
+	gap: 8px;
 	font-weight: 600;
+}
+
+.wp-panel-backup .wppb-progress-spinner {
+	box-sizing: border-box;
+	flex: none;
+	width: 15px;
+	height: 15px;
+	border: 2px solid var(--wppb-line);
+	border-top-color: var(--wppb-green);
+	border-radius: 50%;
+	animation: wppb-progress-rotate 0.8s linear infinite;
+}
+
+@keyframes wppb-progress-rotate {
+	to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.wp-panel-backup .wppb-progress-spinner {
+		animation: none;
+	}
 }
 
 .wp-panel-backup .wppb-progress[data-phase="failed"] .wppb-phase {

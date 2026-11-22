@@ -73,7 +73,8 @@ function source_root() {
 	}
 
 	if ( 'cli' !== PHP_SAPI ) {
-		$document_root = realpath( $_SERVER['DOCUMENT_ROOT'] ?? '' );
+		// The web server provides this local path. Preserve its bytes for the canonical path comparison.
+		$document_root = realpath( wp_unslash( $_SERVER['DOCUMENT_ROOT'] ?? '' ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 		if ( $document_root !== $root ) {
 			throw new RuntimeException( __( 'WordPress 安装根目录与服务器网站根目录不同，请使用手动迁移。', 'wp-panel-backup' ) );
 		}

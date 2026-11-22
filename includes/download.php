@@ -15,7 +15,7 @@ const TAR_BLOCK_BYTES = 512;
 const TAR_MAX_MEMBER_BYTES = 8589934591;
 
 function download_export() {
-	if ( ! current_user_can( 'manage_options' ) || 'POST' !== ( $_SERVER['REQUEST_METHOD'] ?? '' ) ) {
+	if ( ! current_user_can( 'manage_options' ) || 'POST' !== sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ?? '' ) ) ) {
 		wp_die( esc_html__( '你没有下载备份的权限。', 'wp-panel-backup' ), '', array( 'response' => 403 ) );
 	}
 
