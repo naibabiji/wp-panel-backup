@@ -1,9 +1,9 @@
 === WP PANEL Backup ===
 Contributors: naibabiji
 Tags: backup, migration, database
-Requires at least: 7.0
+Requires at least: 6.5
 Tested up to: 7.0
-Requires PHP: 8.3
+Requires PHP: 7.0
 Stable tag: 1.0.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -19,6 +19,7 @@ Run a normal backup while the site remains available, use temporary maintenance 
 = Hosting requirements =
 
 * 64-bit PHP with the ZIP extension and a native mysqli connection.
+* Use a WordPress release that supports the PHP version installed on the source server.
 * A single-site WordPress installation at the web root with matching site and WordPress URLs, a standard domain name, and standard HTTP or HTTPS ports.
 * InnoDB tables and a database account that can read the tables and inspect database objects. Views, triggers, scheduled events, stored procedures, and stored functions are unsupported.
 * WordPress Multisite, subdirectory installations, internationalized domain names, custom content directories, and uploads outside the site root are unsupported. Symbolic links, hard links, and special files in the backup scope stop the backup check. Some settings that depend on the source host, such as a custom database drop-in, also stop the check.
@@ -33,6 +34,10 @@ Run a normal backup while the site remains available, use temporary maintenance 
 The current administration interface is in Simplified Chinese.
 
 == Frequently Asked Questions ==
+
+= Can I back up a site that uses an older PHP version? =
+
+Yes, provided the source WordPress and PHP versions meet the requirements above and the source passes preflight. When the source PHP series differs from WP PANEL's PHP 8.3, the backup page displays an advisory and lets the export continue. After a restore, differences in PHP can cause WordPress, themes, plugins, or custom code to fail. Check the PHP error log on the destination to identify what needs repair.
 
 = Which files are excluded? =
 

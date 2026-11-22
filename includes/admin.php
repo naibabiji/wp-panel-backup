@@ -210,6 +210,23 @@ function cancel_export( $root, $job ) {
 	return $job;
 }
 
+function render_php_migration_notice() {
+	$target_php = '8.3';
+	if ( $target_php === PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION ) {
+		return;
+	}
+	?>
+	<section class="wppb-notice wppb-warning" aria-label="<?php esc_attr_e( 'PHP 迁移兼容提示', 'wp-panel-backup' ); ?>">
+		<p><strong><?php esc_html_e( 'PHP 版本不同，迁移后请测试网站', 'wp-panel-backup' ); ?></strong></p>
+		<p><?php
+			/* translators: 1: PHP version on the source site, 2: PHP version on WP PANEL. */
+			echo esc_html( sprintf( __( '源站使用 PHP %1$s，WP PANEL 使用 PHP %2$s。恢复后，WordPress、主题、插件或自定义代码可能因版本差异报错，导致网站无法打开。', 'wp-panel-backup' ), PHP_VERSION, $target_php ) );
+		?></p>
+		<p><?php esc_html_e( '备份可以继续。恢复后如有问题，请查看目标站的 PHP 错误日志，可自行修复或使用 WP PANEL 的 AI 开发功能辅助排查。', 'wp-panel-backup' ); ?></p>
+	</section>
+	<?php
+}
+
 function render_export_controls( $list ) {
 	try {
 		$root = workspace();
@@ -226,6 +243,7 @@ function render_export_controls( $list ) {
 		render_completed_exports( $jobs, $modes );
 		return;
 	}
+	render_php_migration_notice();
 	$unfinished = array();
 	foreach ( $jobs as $job ) {
 		if ( 'complete' === $job['phase'] ) {

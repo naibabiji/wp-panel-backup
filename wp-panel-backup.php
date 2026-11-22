@@ -3,8 +3,8 @@
  * Plugin Name: WP PANEL Backup
  * Description: Export site files and the database as a downloadable migration backup.
  * Version: 1.0.0
- * Requires at least: 7.0
- * Requires PHP: 8.3
+ * Requires at least: 6.5
+ * Requires PHP: 7.0
  * Author: WP PANEL
  * Author URI: https://wp-panel.org/
  * License: GPL-2.0-or-later

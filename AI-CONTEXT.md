@@ -2,10 +2,9 @@
 
 - 日期：2026-11-22。
 - 项目：WP PANEL Backup，源站独立备份插件；主文件为 wp-panel-backup.php。
-- 当前阶段：本地 WordPress 已验证正常备份准确性、维护、局部更新、下载和材料清理。正式格式冻结及面板恢复待后续。
-- 最新用户要求：小范围处理请求入口警告，加入备份执行动画，验证后本地提交并打包。
-- 用户确认首版 1.0.0、GPL-2.0-or-later、作者 WP PANEL、贡献者 naibabiji，最低 WordPress 7.0 / PHP 8.3。本地第二个候选包为 `dist/wp-panel-backup-1.0.0-rc2.zip`。WordPress.org 上传、部署及面板恢复另行处理。
-- 插件方向已确认，首版导出与私有工作区、维护和保留方案已由用户确认，详见 requirements；正式兼容矩阵及格式冻结仍见 pending-decisions。
+- 当前阶段：本地 WordPress 已验证正常备份准确性、维护、局部更新、下载和材料清理。最近一次打包为 `dist/wp-panel-backup-1.0.0-rc2.zip`，来自提交 `08a4fba`。该包仍声明最低 WordPress 7.0 / PHP 8.3，Plugin Check 静态扫描为 0 个错误、5 条警告。
+- 用户确认首版 1.0.0、GPL-2.0-or-later、作者 WP PANEL、贡献者 naibabiji，并将源站最低版本调整为 WordPress 6.5 / PHP 7.0。当前源码在源站 PHP 主、次版本与面板 PHP 8.3 不同时提示恢复兼容风险。WordPress.org 尚未提交，部署及面板恢复另行处理。
+- 首版导出、站内随机工作目录、维护和保留方案已确认，详见 requirements。更广的兼容矩阵及交换格式冻结仍见 pending-decisions。
 - 面板恢复没有实现，不能声称插件包已可在 WP Panel 导入；只有两端真实验收后才能这样宣传。
 - 当前活动卡：[插件开发](docs/work/active/2026-11-22-plugin-development.md)。[初始化交接](docs/work/active/2026-11-22-plugin-bootstrap.md)保留历史决策。
 - 先读 AGENTS.md 的必读列表；跨项目事实见 integrations 文档，面板旧要求中“暂不创建插件”的历史措辞已被当前指令取代。
@@ -16,4 +15,4 @@
 
 ## 下一位 AI 的起点
 
-读取开发任务卡及待定事项。已有隔离测试站使用缓存镜像且没有宿主端口。任务卡记录真实导出和文件、数据库内容比对结果。先复审并交接开发期材料格式，再另行安排面板恢复。测试版本仅记录为实测环境。
+读取开发任务卡及待定事项。历史隔离站使用缓存镜像且没有宿主端口。任务卡记录实际导出以及文件和数据库比对结果。面板侧按共享候选格式复核后再开发恢复，WordPress.org 审核单独跟进。
