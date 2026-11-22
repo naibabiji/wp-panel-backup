@@ -10,7 +10,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 const FILE_BLOCK_BYTES = 16 * 1024 * 1024;
-const ZIP_PAYLOAD_BYTES = 64 * 1024 * 1024;
+const LEGACY_ZIP_PAYLOAD_BYTES = 64 * 1024 * 1024;
+const DEFAULT_ZIP_PAYLOAD_MIB = 512;
+const ZIP_PAYLOAD_OPTIONS = array( 128, 512, 1024 );
+const ZIP_MAX_MEMBERS = 60000;
+const PACK_REQUEST_BYTES = 64 * 1024 * 1024;
 
 function validate_export_source() {
 	if ( ! class_exists( ZipArchive::class ) || PHP_INT_SIZE < 8 ) {
@@ -23,16 +27,10 @@ function validate_export_source() {
 	if ( ! is_file( $source['root'] . '/wp-config.php' ) ) {
 		throw new RuntimeException( '未找到根目录 wp-config.php，本版无法携带供迁移参考的配置。' );
 	}
-	$drop_ins = array( 'db.php', 'object-cache.php' );
-	if ( defined( 'WP_CACHE' ) && WP_CACHE ) {
-		$drop_ins[] = 'advanced-cache.php';
+	if ( file_exists( WP_CONTENT_DIR . '/db.php' ) ) {
+		throw new RuntimeException( '发现本版无法迁移的配置依赖：db.php' );
 	}
-	foreach ( $drop_ins as $drop_in ) {
-		if ( file_exists( WP_CONTENT_DIR . '/' . $drop_in ) ) {
-			throw new RuntimeException( '发现本版无法迁移的配置依赖：' . $drop_in );
-		}
-	}
-	foreach ( array( 'WP_REDIS_PASSWORD', 'CUSTOM_USER_TABLE', 'CUSTOM_USER_META_TABLE' ) as $constant ) {
+	foreach ( array( 'CUSTOM_USER_TABLE', 'CUSTOM_USER_META_TABLE' ) as $constant ) {
 		if ( defined( $constant ) && constant( $constant ) ) {
 			throw new RuntimeException( '发现本版无法迁移的站点运行配置：' . $constant );
 		}
@@ -50,20 +48,17 @@ function validate_export_source() {
 	return $source;
 }
 
-function create_export( $workspace, $options, $mode ) {
+function create_export( $workspace, $options, $mode, $zip_payload_mib ) {
+	if ( ! in_array( $zip_payload_mib, ZIP_PAYLOAD_OPTIONS, true ) ) {
+		throw new RuntimeException( '请选择支持的 ZIP 分包大小。' );
+	}
 	$source = validate_export_source();
+	prepare_workspace( $workspace );
 	$id = bin2hex( random_bytes( 16 ) );
 	$directory = $workspace . '/' . $id;
 	if ( ! mkdir( $directory, 0700 ) ) {
 		throw new RuntimeException( '无法创建备份任务目录。' );
 	}
-	try {
-		verify_workspace_protection( $workspace, $directory, $source['home'] );
-	} catch ( \Throwable $error ) {
-		rmdir( $directory );
-		throw $error;
-	}
-
 	$job = array(
 		'id'            => $id,
 		'mode'          => $mode,
@@ -79,9 +74,12 @@ function create_export( $workspace, $options, $mode ) {
 		'file'          => null,
 		'sql_packed'    => false,
 		'packages'      => array(),
+		'zip_payload_bytes' => $zip_payload_mib * 1024 * 1024,
 		'options'       => $options,
+		'directory_exclusions' => array_filter( detected_directory_exclusions( $source['root'] ), static function ( $entry ) use ( $options ) {
+			return ! empty( $options[ $entry['reason'] ] );
+		} ),
 		'updated_at'    => time(),
-		'protection_checked_at' => time(),
 	);
 	write_record( $directory . '/job.json', $job );
 	return $job;
@@ -89,10 +87,12 @@ function create_export( $workspace, $options, $mode ) {
 
 function plan_export_files( $directory, &$job ) {
 	$root = $job['source']['root'];
-	$excluded = substr( dirname( $directory ), strlen( $root ) + 1 );
+	$workspace_path = substr( dirname( $directory ), strlen( $root ) + 1 );
+	$excluded = array( $workspace_path => array( 'reason' => 'workspace' ) ) + ( $job['directory_exclusions'] ?? array() );
+	$excluded += array_fill_keys( CACHE_DROPIN_PATHS, array( 'reason' => 'cache-drop-in' ) );
 	$stream = open_output( $directory . '/queue.ndjson', 0 );
 	try {
-		foreach ( source_entries( $root, '', true, $excluded ) as $entry ) {
+		foreach ( source_entries( $root, $excluded ) as $entry ) {
 			write_bytes( $stream, encode_record( $entry ) );
 		}
 		finish_output( $stream );
@@ -153,14 +153,14 @@ function pack_export_step( $directory, &$job ) {
 	$index = open_output( $directory . '/files.ndjson', $job['index_offset'] );
 	$ordinal = count( $job['packages'] ) + 1;
 	$name = sprintf( 'part-%05d.zip', $ordinal );
-	$zip_path = $directory . '/building.zip';
-	$zip = new ZipArchive();
-	$chunks = array();
-	$zip_open = false;
-	$bytes = 0;
-	$finished = false;
+	$payload_limit = $job['zip_payload_bytes'] ?? LEGACY_ZIP_PAYLOAD_BYTES;
+	$bytes = $job['pending_zip_bytes'] ?? 0;
+	$members = $job['pending_zip_members'] ?? 0;
+	$request_bytes = 0;
+	$published_members = 0;
+	$finished = ! empty( $job['archive_scan_complete'] );
 	try {
-		for ( $processed = 0; $processed < 256 && $bytes < ZIP_PAYLOAD_BYTES; ++$processed ) {
+		for ( $processed = 0; ! $finished && $processed < 256 && $request_bytes < PACK_REQUEST_BYTES && $bytes < $payload_limit && $members < ZIP_MAX_MEMBERS; ++$processed ) {
 			if ( null === $job['file'] ) {
 				if ( ! $job['sql_packed'] ) {
 					$stat = stat( $directory . '/database.sql' );
@@ -181,30 +181,24 @@ function pack_export_step( $directory, &$job ) {
 
 			$file = &$job['file'];
 			$source_path = 'sql' === $file['kind'] ? $directory . '/database.sql' : $job['source']['root'] . '/' . $file['path'];
-			$length = min( FILE_BLOCK_BYTES, ZIP_PAYLOAD_BYTES - $bytes, $file['size'] - $file['offset'] );
+			$length = min( FILE_BLOCK_BYTES, PACK_REQUEST_BYTES - $request_bytes, $payload_limit - $bytes, $file['size'] - $file['offset'] );
 			$stream = open_source_file( $source_path, $file );
 			try {
 				if ( $length > 0 ) {
-					if ( ! $zip_open ) {
-						if ( true !== $zip->open( $zip_path, ZipArchive::CREATE | ZipArchive::OVERWRITE ) ) {
-							throw new RuntimeException( '无法创建 ZIP 分包。' );
-						}
-						$zip_open = true;
-					}
-					$member = sprintf( 'data/%05d', count( $chunks ) + 1 );
-					$chunk = $directory . '/chunk-' . count( $chunks ) . '.raw';
-					$chunks[] = $chunk;
+					++$members;
+					$member = sprintf( 'data/%05d', $members );
+					$chunk = staged_chunk_path( $directory, $ordinal, $members );
 					$part = open_output( $chunk, 0 );
 					try {
-						if ( 0 !== fseek( $stream, $file['offset'] ) || $length !== stream_copy_to_stream( $stream, $part, $length ) ) {
+						if ( 0 !== fseek( $stream, $file['offset'] ) ) {
 							throw new RuntimeException( '无法完整读取文件块：' . $file['path'] );
+						}
+						if ( $length !== @stream_copy_to_stream( $stream, $part, $length ) ) {
+							throw new RuntimeException( storage_error( '无法完整复制文件块：' . $file['path'] . '。', $directory ) );
 						}
 						finish_output( $part );
 					} finally {
 						fclose( $part );
-					}
-					if ( ! $zip->addFile( $chunk, $member ) ) {
-						throw new RuntimeException( '无法写入 ZIP 分包。' );
 					}
 					$digest = hash_file( 'sha256', $chunk );
 					if ( false === $digest ) {
@@ -216,6 +210,7 @@ function pack_export_step( $directory, &$job ) {
 					) ) );
 					$file['offset'] += $length;
 					$bytes += $length;
+					$request_bytes += $length;
 				}
 				if ( $file['offset'] === $file['size'] ) {
 					if ( ! rewind( $stream ) ) {
@@ -241,19 +236,18 @@ function pack_export_step( $directory, &$job ) {
 			}
 		}
 
-		if ( $zip_open ) {
-			$zip_open = false;
-			if ( ! $zip->close() ) {
-				throw new RuntimeException( '无法完成 ZIP 分包写入。' );
-			}
-			$package = artifact_metadata( $zip_path, $name );
-			if ( ! rename( $zip_path, $directory . '/' . $name ) ) {
-				throw new RuntimeException( '无法保存 ZIP 分包。' );
-			}
-			$job['packages'][] = $package;
-		}
 		$job['index_offset'] = finish_output( $index );
-		if ( $finished ) {
+		// Close a ready ZIP separately from the requests that copied its raw data.
+		if ( 0 === $request_bytes && $members && ( $finished || $bytes === $payload_limit || $members === ZIP_MAX_MEMBERS ) ) {
+			$job['packages'][] = publish_staged_zip( $directory, $name, $ordinal, $members );
+			$published_members = $members;
+			$bytes = 0;
+			$members = 0;
+		}
+		$job['pending_zip_bytes'] = $bytes;
+		$job['pending_zip_members'] = $members;
+		$job['archive_scan_complete'] = $finished;
+		if ( $finished && ! $members ) {
 			$job['phase'] = 'complete';
 			$job['completed_at'] = time();
 			write_record( $directory . '/manifest.json', array(
@@ -273,18 +267,38 @@ function pack_export_step( $directory, &$job ) {
 			) );
 		}
 	} finally {
-		if ( $zip_open ) {
-			$zip->unchangeAll();
-			$zip->close();
-		}
-		foreach ( $chunks as $chunk ) {
-			if ( is_file( $chunk ) ) {
-				unlink( $chunk );
-			}
-		}
 		fclose( $queue );
 		fclose( $index );
 	}
+	return $published_members;
+}
+
+function staged_chunk_path( $directory, $ordinal, $member ) {
+	return sprintf( '%s/chunk-%05d-%05d.raw', $directory, $ordinal, $member );
+}
+
+function publish_staged_zip( $directory, $name, $ordinal, $members ) {
+	$path = $directory . '/building.zip';
+	$zip = new ZipArchive();
+	if ( true !== $zip->open( $path, ZipArchive::CREATE | ZipArchive::OVERWRITE ) ) {
+		throw new RuntimeException( storage_error( '无法创建 ZIP 分包。', $directory ) );
+	}
+	for ( $member = 1; $member <= $members; ++$member ) {
+		$chunk = staged_chunk_path( $directory, $ordinal, $member );
+		if ( ! is_file( $chunk ) || ! @$zip->addFile( $chunk, sprintf( 'data/%05d', $member ) ) ) {
+			$zip->unchangeAll();
+			@$zip->close();
+			throw new RuntimeException( '备份文件块缺失或无法加入 ZIP 分包。' );
+		}
+	}
+	if ( ! @$zip->close() ) {
+		throw new RuntimeException( storage_error( '无法完成 ZIP 分包写入。', $directory ) );
+	}
+	$package = artifact_metadata( $path, $name );
+	if ( ! @rename( $path, $directory . '/' . $name ) ) {
+		throw new RuntimeException( storage_error( '无法保存 ZIP 分包。', $directory ) );
+	}
+	return $package;
 }
 
 function artifact_metadata( $path, $name ) {
@@ -302,6 +316,7 @@ function advance_export( $directory, $job ) {
 		return $job;
 	}
 	$before = $job;
+	$published_members = 0;
 	try {
 		if ( 'scan' === $job['phase'] ) {
 			plan_export_files( $directory, $job );
@@ -309,10 +324,14 @@ function advance_export( $directory, $job ) {
 		} elseif ( 'database' === $job['phase'] ) {
 			export_database_step( $directory, $job );
 		} else {
-			pack_export_step( $directory, $job );
+			$published_members = pack_export_step( $directory, $job );
 		}
 		$job['updated_at'] = time();
 		write_record( $directory . '/job.json', $job );
+		// The previous checkpoint still needs these chunks until the new state is saved.
+		for ( $member = 1; $member <= $published_members; ++$member ) {
+			@unlink( staged_chunk_path( $directory, count( $job['packages'] ), $member ) );
+		}
 	} catch ( \Throwable $error ) {
 		$job = $before;
 		$job['phase'] = 'failed';
@@ -322,6 +341,9 @@ function advance_export( $directory, $job ) {
 	if ( 'complete' === $job['phase'] ) {
 		unlink( $directory . '/queue.ndjson' );
 		unlink( $directory . '/database.sql' );
+		foreach ( glob( $directory . '/chunk-*.raw' ) ?: array() as $chunk ) {
+			@unlink( $chunk );
+		}
 	}
 	return $job;
 }

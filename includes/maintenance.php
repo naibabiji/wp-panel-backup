@@ -65,6 +65,9 @@ function maintenance_admin_access() {
 		if ( 'admin-post.php' === $pagenow && in_array( $_POST['action'] ?? '', array( 'wp_panel_backup_control', 'wp_panel_backup_download' ), true ) ) {
 			return;
 		}
+		if ( wp_doing_ajax() && 'wp_panel_backup_advance' === ( $_POST['action'] ?? '' ) ) {
+			return;
+		}
 		if ( 'GET' === ( $_SERVER['REQUEST_METHOD'] ?? '' ) && ! wp_doing_ajax() ) {
 			wp_safe_redirect( backup_page_url() );
 			exit;

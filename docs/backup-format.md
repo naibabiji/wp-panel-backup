@@ -35,6 +35,12 @@
 - `manifest.json` 包含 `id`、`complete`、`mode`、`completed_at`、`source`（`home`、`siteurl`、`prefix`）、`tables`（`name`、`rows`）、`exclusions`、`index` 和 `packages`。材料引用记录 `name`、`size` 和 `sha256`。
 - `files.ndjson` 是 UTF-8 的逐行 JSON。记录类型按 `kind` 区分为 `directory`、`excluded`、`block`、`file` 和 `sql`。排除记录含 `path` 和 `reason`。文件和 SQL 结束记录含 `path`、`size`、`sha256`；零字节文件只有结束记录。
 - 块记录含 `target`（`file` 或 `sql`）、`path`、`package`、`member`、`offset`、`length`、`sha256`。同一目标按偏移顺序拼接。SQL 的逻辑路径 `database.sql` 与网站同名文件分开识别。原站 `wp-config.php` 以原路径记录，消费端只作配置参考。
-- 分包文件名为 `part-00001.zip` 起的连续序号。各自是普通独立 ZIP，成员位置由索引指向。块最多 16 MiB，原始载荷最多 64 MiB，批次达到处理项数边界也可能提前结束。
+- 分包文件名为 `part-00001.zip` 起的连续序号。各自是普通独立 ZIP，成员位置由索引指向。块最多 16 MiB。新任务的单包原始载荷可选 128 MiB、512 MiB 或 1 GiB，默认 512 MiB。已有任务使用原预算。源端可以跨多个 HTTP 请求累积同一包。达到载荷预算或完成扫描后写出分包，极多微小文件时也受单包条目数上限约束。成品 ZIP 实际字节取决于压缩。
 - 全套材料需要单独的清单和索引。ZIP 不包含本地任务状态、工作目录、维护标记或下载状态。正式发布格式仍待跨项目复核。
 - 自动站内工作目录仅在索引中以 `kind: excluded`、`reason: workspace` 记录。随机磁盘目录不影响用户下载的文件名。
+- 第三方目录的 `excluded` 记录使用 `reason: cache` 或 `reason: backups`，另附归属插件 `plugin`。该目录及其内容不包含在文件块中。
+- 标准缓存加载文件的 `excluded` 记录使用 `reason: cache-drop-in`。源站 Redis 配置若存在于 `wp-config.php`，仅随配置参考保留，恢复端需使用目标站配置。
+
+### 整套单文件下载
+
+`wp-panel-backup-<id>.tar` 是按需流式生成的标准 USTAR 文件。顶层包含相同的 `manifest.json`、`files.ndjson` 和全部原始 ZIP 分包，每份内容与逐份下载逐字节一致。没有目录、链接或额外控制文件。分包的哈希校验沿用清单，源端不保存额外 TAR 副本。恢复端未来可读取这个外层 TAR，使用同一套内部校验与恢复流程。

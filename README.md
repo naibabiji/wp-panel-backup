@@ -2,7 +2,7 @@
 
 独立 WordPress 源站备份插件，供管理员将常规网站备份为可下载材料，后续由 WP Panel 从备份创建同域名网站。
 
-**当前状态：开发源码已在隔离 WordPress 验证全目录与全库备份、三种模式、下载和清理。** 源码及文档保存在本地 Git，本轮用户测试包为 `dist/wp-panel-backup-0.0.0-dev-auto-storage.zip`。正式版本及发布方式待后续确认。
+**当前状态：开发源码已在隔离 WordPress 验证全目录与全库备份、三种模式、下载和清理。** 源码及文档保存在本地 Git，当前开发测试包为 `dist/wp-panel-backup-0.0.0-dev-ajax-ui.zip`。正式版本及发布方式待后续确认。
 
 开发顺序：
 
@@ -18,6 +18,7 @@
 - [职责和开发阶段](docs/architecture.md)
 - [备份格式候选](docs/backup-format.md)
 - [与 WP Panel 的关系](docs/integrations/wp-panel.md)
+- [自动排除目录与识别依据](docs/directory-exclusions.md)
 - [待定事项](docs/pending-decisions.md)
 - [常见场景验收](docs/acceptance.md)
 - [活动任务](docs/work/README.md)
@@ -26,11 +27,19 @@
 
 ## 开发测试站使用
 
-在 WordPress 后台进入「插件 → 安装插件 → 上传插件」，上传 `wp-panel-backup-0.0.0-dev-auto-storage.zip` 并启用。测试包由 `wp-panel-backup.php`、`includes/*.php` 和 `assets/advance.js` 组成。
+在 WordPress 后台进入「插件 → 安装插件 → 上传插件」，上传 `wp-panel-backup-0.0.0-dev-ajax-ui.zip` 并启用。安装包包含 `wp-panel-backup.php`、`includes/*.php`、`assets/advance.js` 和 `assets/admin.css`。
 
-首次开始备份时，插件自动在 `wp-content` 下建立带随机后缀的工作目录，并通过无敏感探测文件自检。自检失败时，请查看后台的具体提示，由主机商设置站内目录禁访规则后重试。
+首次开始备份时，插件自动在 `wp-content` 下建立带随机后缀的工作目录，并生成 `.htaccess` 和防止列目录的 `index.html`。创建成功便可备份，主机无需支持回环请求。写入失败会提示检查剩余空间、主机账号配额和目录权限。
 
-在插件列表点 WP PANEL Backup 下方的「设置」，或通过「工具 → WP PANEL Backup」打开备份页。运行预检并选择模式。备份时保持页面打开，离开后可返回继续。完成后下载清单、索引和全部 ZIP，按整套保存。完整材料保留最近两套且最长 7 天，半成品从最后有效推进起保留 7 天。
+下载列表会显示直链访问提醒。请勿分享备份文件的 URL。如果服务器允许直接读取备份目录，未登录的访客知道完整 URL 后也能下载。使用 Nginx 时，可在对应站点的 `server` 配置中添加下面的规则，并检测配置后重载 Nginx。此规则覆盖站内所有由插件创建的随机工作目录，后台授权下载仍可使用。
+
+```nginx
+location ^~ /wp-content/wp-panel-backup-storage- {
+    return 403;
+}
+```
+
+在插件列表点 WP PANEL Backup 下方的「备份」，或通过「工具 → WP PANEL Backup」打开备份页。备份页会列出识别到的缓存和备份目录，默认跳过。存在标准缓存加载文件时，页面也会列出并自动跳过，源文件照常使用，目标恢复后重新配置缓存。选择模式并点「开始备份」，插件会自动完成预检。执行期间仅更新进度区域，保持此页打开即可自动推进。离开页面或请求失败后，可点「继续备份」从已保存的进度继续。创建备份时可选 128 MiB、512 MiB 或 1 GiB 的单包原始载荷，默认 512 MiB。完成后自动进入「备份列表」，可下载一个整套 TAR，也可逐份下载清单、索引和 ZIP。整套 TAR 解开后得到完全相同的材料。完整材料保留最近两套且最长 7 天，半成品从最后有效推进起保留 7 天。
 
 临时维护异常时可在插件页面手动解除，搬家维护须使用「取消搬家并恢复原站」。后台无法访问且确需开放原站时，由主机管理员等当前备份请求结束后，移除该站工作目录中的 `maintenance.json`，再进后台确认任务状态。
 

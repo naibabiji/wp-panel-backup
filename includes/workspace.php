@@ -81,84 +81,28 @@ function with_workspace_lock( $callback, $create = false ) {
 	}
 }
 
-function verify_workspace_protection( $root, $directory, $home ) {
-	$rule = $root . '/.htaccess';
-	if ( ! file_exists( $rule ) ) {
-		$stream = @fopen( $rule, 'xb' );
-		if ( false === $stream ) {
-			throw new RuntimeException( '无法创建备份目录的访问保护规则。' );
-		}
-		try {
-			write_bytes( $stream, "<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\nOrder allow,deny\nDeny from all\n</IfModule>\n" );
-		} finally {
-			fclose( $stream );
-		}
-	}
+function prepare_workspace( $root ) {
+	ensure_workspace_file( $root . '/.htaccess', "<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\nOrder allow,deny\nDeny from all\n</IfModule>\n" );
+	ensure_workspace_file( $root . '/index.html', "<!doctype html><meta charset=\"utf-8\"><title></title>\n" );
 
-	$token = bin2hex( random_bytes( 16 ) );
-	$probe = 'wp-panel-backup-probe-' . $token;
-	$base_url = $home . '/wp-content/';
-	$root_url = $base_url . basename( $root ) . '/';
-	$job_url = $root_url . basename( $directory ) . '/';
-	$written = array();
-	try {
-		create_workspace_probe( WP_CONTENT_DIR . '/' . $probe . '.txt', $token, $written );
-		$response = request_workspace_probe( $base_url . $probe . '.txt' );
-		if ( 200 !== wp_remote_retrieve_response_code( $response ) || $token !== wp_remote_retrieve_body( $response ) ) {
-			throw new RuntimeException( '无法确认匿名自检请求到达本站。请检查站点地址、回环访问和代理配置。' );
-		}
 
-		// Check directory listings as well as the file types served by the web server.
-		foreach ( array( $root => $root_url, $directory => $job_url ) as $path => $url ) {
-			require_workspace_probe_denied( $url, $token );
-			foreach ( array( '', '.json', '.tmp', '.sql', '.zip', '.ndjson', '.raw' ) as $extension ) {
-				$name = $probe . $extension;
-				create_workspace_probe( $path . '/' . $name, $token, $written );
-				require_workspace_probe_denied( $url . $name, $token );
-			}
-		}
-	} finally {
-		foreach ( $written as $path ) {
-			unlink( $path );
-		}
-	}
 	if ( ! is_file( $root . '/site.json' ) ) {
 		write_record( $root . '/site.json', array( 'site' => site_identity() ) );
 	}
 }
 
-function create_workspace_probe( $path, $token, &$written ) {
+function ensure_workspace_file( $path, $content ) {
+	if ( is_file( $path ) && ! is_link( $path ) ) {
+		return;
+	}
 	$stream = @fopen( $path, 'xb' );
 	if ( false === $stream ) {
-		throw new RuntimeException( '无法写入工作目录探测文件，请检查 wp-content 和工作目录写权限。' );
+		throw new RuntimeException( storage_error( '无法创建备份目录文件 ' . basename( $path ) . '。', dirname( $path ) ) );
 	}
-	$written[] = $path;
 	try {
-		write_bytes( $stream, $token );
+		write_bytes( $stream, $content );
 	} finally {
 		fclose( $stream );
-	}
-}
-
-function request_workspace_probe( $url ) {
-	// Use the verified WordPress home origin, which may use private LAN addresses.
-	$response = wp_remote_get( $url, array(
-		'timeout'             => 3,
-		'redirection'         => 0,
-		'limit_response_size' => 4096,
-		'headers'             => array( 'Cache-Control' => 'no-cache, no-store' ),
-	) );
-	if ( is_wp_error( $response ) ) {
-		throw new RuntimeException( '匿名自检无法连接本站。请检查站点域名、TLS 或 PHP 发起的回环请求。' );
-	}
-	return $response;
-}
-
-function require_workspace_probe_denied( $url, $token ) {
-	$response = request_workspace_probe( $url );
-	$status = wp_remote_retrieve_response_code( $response );
-	if ( ! in_array( $status, array( 403, 404 ), true ) || false !== strpos( wp_remote_retrieve_body( $response ), $token ) ) {
-		throw new RuntimeException( sprintf( '无法确认备份目录禁止匿名直读（HTTP %d）。请让主机商为 wp-content 下的 WP PANEL Backup 工作目录及子目录设置禁访规则，然后重试。', $status ) );
 	}
 }
 
@@ -171,15 +115,23 @@ function encode_record( $value ) {
 }
 
 function write_bytes( $stream, $value ) {
-	if ( strlen( $value ) !== fwrite( $stream, $value ) ) {
-		throw new RuntimeException( '备份写入失败，请检查私有目录的可用空间。' );
+	if ( strlen( $value ) !== @fwrite( $stream, $value ) ) {
+		throw new RuntimeException( storage_error( '备份写入失败。', dirname( stream_get_meta_data( $stream )['uri'] ) ) );
 	}
+}
+
+function storage_error( $message, $directory ) {
+	$free = function_exists( 'disk_free_space' ) ? @disk_free_space( $directory ) : false;
+	if ( false !== $free ) {
+		return $message . sprintf( '文件系统显示剩余 %s，请检查主机账号配额及目录写权限。', size_format( $free, 1 ) );
+	}
+	return $message . '请检查磁盘空间、主机账号配额及目录写权限。';
 }
 
 function write_record( $path, $value ) {
 	$json = encode_record( $value );
-	if ( strlen( $json ) !== file_put_contents( $path . '.tmp', $json ) || ! rename( $path . '.tmp', $path ) ) {
-		throw new RuntimeException( '无法保存备份状态，请检查私有目录的可用空间。' );
+	if ( strlen( $json ) !== @file_put_contents( $path . '.tmp', $json ) || ! @rename( $path . '.tmp', $path ) ) {
+		throw new RuntimeException( storage_error( '无法保存备份状态。', dirname( $path ) ) );
 	}
 }
 
@@ -192,9 +144,9 @@ function read_record( $path ) {
 }
 
 function open_output( $path, $offset ) {
-	$stream = fopen( $path, 'c+b' );
+	$stream = @fopen( $path, 'c+b' );
 	if ( false === $stream ) {
-		throw new RuntimeException( '无法创建备份数据文件。' );
+		throw new RuntimeException( storage_error( '无法创建备份数据文件。', dirname( $path ) ) );
 	}
 	if ( fstat( $stream )['size'] < $offset || ! ftruncate( $stream, $offset ) || 0 !== fseek( $stream, $offset ) ) {
 		fclose( $stream );
@@ -205,8 +157,8 @@ function open_output( $path, $offset ) {
 
 function finish_output( $stream ) {
 	$offset = ftell( $stream );
-	if ( false === $offset || ! fflush( $stream ) ) {
-		throw new RuntimeException( '无法保存备份数据文件。' );
+	if ( false === $offset || ! @fflush( $stream ) ) {
+		throw new RuntimeException( storage_error( '无法保存备份数据文件。', dirname( stream_get_meta_data( $stream )['uri'] ) ) );
 	}
 	return $offset;
 }
