@@ -1,0 +1,12 @@
+# Local secrets and generated site/backup material
+.env
+.env.*
+!.env.example
+/local-data/
+/backups/
+/test-artifacts/
+/dist/
+/vendor/
+/node_modules/
+*.log
+.DS_Store
