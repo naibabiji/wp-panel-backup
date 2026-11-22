@@ -30,12 +30,9 @@ function release_maintenance( $workspace, $mode, $job_id = '' ) {
 }
 
 function active_maintenance() {
-	if ( ! defined( 'WP_PANEL_BACKUP_PRIVATE_DIR_VERIFIED' ) || true !== WP_PANEL_BACKUP_PRIVATE_DIR_VERIFIED ) {
-		return false;
-	}
 	try {
 		$workspace = workspace();
-		return is_file( $workspace . '/site.json' ) && null !== maintenance_record( $workspace );
+		return null !== $workspace && is_file( $workspace . '/site.json' ) && null !== maintenance_record( $workspace );
 	} catch ( RuntimeException $error ) {
 		return false;
 	}

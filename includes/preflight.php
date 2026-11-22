@@ -97,7 +97,7 @@ function source_root() {
 /**
  * Traverse the included tree without following links or retaining every file in memory.
  */
-function source_entries( $root, $relative = '', $report_hidden = false ) {
+function source_entries( $root, $relative = '', $report_excluded = false, $workspace_path = '' ) {
 	$directory = rtrim( $root . '/' . $relative, '/' );
 	if ( realpath( $directory ) !== $directory ) {
 		throw new RuntimeException( '扫描目录已消失或变成链接：' . $relative );
@@ -107,14 +107,14 @@ function source_entries( $root, $relative = '', $report_hidden = false ) {
 			continue;
 		}
 		$name = $entry->getFilename();
-		if ( '.' === $name[0] ) {
-			if ( $report_hidden ) {
-				yield array( 'kind' => 'excluded', 'path' => $relative . $name, 'reason' => 'hidden' );
+		$path = $relative . $name;
+		if ( '.' === $name[0] || $path === $workspace_path ) {
+			if ( $report_excluded ) {
+				yield array( 'kind' => 'excluded', 'path' => $path, 'reason' => $path === $workspace_path ? 'workspace' : 'hidden' );
 			}
 			continue;
 		}
 
-		$path = $relative . $name;
 		$stat = lstat( $entry->getPathname() );
 		if ( false === $stat ) {
 			throw new RuntimeException( '无法读取文件信息：' . $path );
@@ -131,7 +131,7 @@ function source_entries( $root, $relative = '', $report_hidden = false ) {
 		$is_directory = 0040000 === $type;
 		if ( $is_directory ) {
 			yield array( 'path' => $path, 'kind' => 'directory' );
-			yield from source_entries( $root, $path . '/', $report_hidden );
+			yield from source_entries( $root, $path . '/', $report_excluded, $workspace_path );
 		} else {
 			yield array( 'path' => $path, 'kind' => 'file', 'size' => $stat['size'], 'mtime' => $stat['mtime'], 'ctime' => $stat['ctime'] );
 		}

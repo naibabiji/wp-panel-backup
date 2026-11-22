@@ -55,7 +55,13 @@ function create_export( $workspace, $options, $mode ) {
 	$id = bin2hex( random_bytes( 16 ) );
 	$directory = $workspace . '/' . $id;
 	if ( ! mkdir( $directory, 0700 ) ) {
-		throw new RuntimeException( '无法在私有目录创建备份任务。' );
+		throw new RuntimeException( '无法创建备份任务目录。' );
+	}
+	try {
+		verify_workspace_protection( $workspace, $directory, $source['home'] );
+	} catch ( \Throwable $error ) {
+		rmdir( $directory );
+		throw $error;
 	}
 
 	$job = array(
@@ -75,15 +81,18 @@ function create_export( $workspace, $options, $mode ) {
 		'packages'      => array(),
 		'options'       => $options,
 		'updated_at'    => time(),
+		'protection_checked_at' => time(),
 	);
 	write_record( $directory . '/job.json', $job );
 	return $job;
 }
 
 function plan_export_files( $directory, &$job ) {
+	$root = $job['source']['root'];
+	$excluded = substr( dirname( $directory ), strlen( $root ) + 1 );
 	$stream = open_output( $directory . '/queue.ndjson', 0 );
 	try {
-		foreach ( source_entries( $job['source']['root'], '', true ) as $entry ) {
+		foreach ( source_entries( $root, '', true, $excluded ) as $entry ) {
 			write_bytes( $stream, encode_record( $entry ) );
 		}
 		finish_output( $stream );

@@ -13,6 +13,13 @@ function register_backup_page() {
 	}
 }
 
+function backup_plugin_action_links( $links ) {
+	if ( current_user_can( 'manage_options' ) ) {
+		$links = array( 'settings' => '<a href="' . esc_url( backup_page_url() ) . '">设置</a>' ) + $links;
+	}
+	return $links;
+}
+
 function authorize_preflight_request() {
 	if ( ! current_user_can( 'manage_options' ) ) {
 		wp_die( '你没有访问备份页面的权限。', '', array( 'response' => 403 ) );
@@ -29,7 +36,9 @@ function render_backup_page() {
 	if ( 'POST' === ( $_SERVER['REQUEST_METHOD'] ?? '' ) ) {
 		try {
 			$source = inspect_source();
-			foreach ( source_entries( $source['root'] ) as $entry ) {
+			$storage = workspace();
+			$excluded = null === $storage ? '' : substr( $storage, strlen( $source['root'] ) + 1 );
+			foreach ( source_entries( $source['root'], '', false, $excluded ) as $entry ) {
 				if ( 'file' === $entry['kind'] ) {
 					++$count;
 				}
@@ -49,7 +58,7 @@ function render_backup_page() {
 				echo esc_html( sprintf( '%s 的基础检查通过，共扫描 %d 个文件，列出 %d 张可见数据表。', $source['home'], $count, count( $source['tables'] ) ) );
 			?></p></div>
 		<?php endif; ?>
-		<p>开始备份时还会验证配置、数据库权限和私有工作目录。</p>
+		<p>首次开始备份时会自动创建工作目录，并检查匿名访客无法直接读取备份材料。</p>
 		<form method="post" action="<?php echo esc_url( admin_url( 'tools.php?page=wp-panel-backup' ) ); ?>">
 			<?php wp_nonce_field( 'wp-panel-backup-preflight', '_wp_panel_backup_nonce' ); ?>
 			<?php submit_button( '运行基础预检' ); ?>
@@ -75,7 +84,7 @@ function control_export() {
 	try {
 		$job = with_workspace_lock( static function ( $root ) use ( $operation, $id, $mode, $options ) {
 			return apply_export_operation( $root, $operation, $id, $mode, $options );
-		} );
+		}, 'start' === $operation );
 	} catch ( \Throwable $error ) {
 		wp_die( esc_html( $error->getMessage() ), '备份任务未能运行', array( 'response' => 400, 'back_link' => true ) );
 	}
@@ -129,10 +138,14 @@ function apply_export_operation( $root, $operation, $id, $mode, $options ) {
 	if ( 'cancel' === $operation ) {
 		return export_is_running( $job ) ? cancel_export( $root, $job ) : $job;
 	}
-	if ( 'advance' !== $operation ) {
+	if ( ! in_array( $operation, array( 'advance', 'resume' ), true ) ) {
 		throw new \RuntimeException( '无效的备份操作。' );
 	}
 	$was_running = export_is_running( $job );
+	if ( $was_running && ( 'resume' === $operation || time() - ( $job['protection_checked_at'] ?? 0 ) >= MINUTE_IN_SECONDS ) ) {
+		verify_workspace_protection( $root, $directory, source_address( get_option( 'home' ) ) );
+		$job['protection_checked_at'] = time();
+	}
 	$job = advance_export( $directory, $job );
 	if ( $was_running && 'complete' === $job['phase'] ) {
 		release_maintenance( $root, 'temporary', $job['id'] );
@@ -158,8 +171,8 @@ function cancel_export( $root, $job ) {
 function render_export_controls() {
 	try {
 		$root = workspace();
-		$jobs = list_exports( $root );
-		$maintenance = maintenance_record( $root );
+		$jobs = null === $root ? array() : list_exports( $root );
+		$maintenance = null === $root ? null : maintenance_record( $root );
 	} catch ( \RuntimeException $error ) {
 		echo '<div class="notice notice-warning"><p>' . esc_html( $error->getMessage() ) . '</p></div>';
 		return;
@@ -211,7 +224,7 @@ function render_export_controls() {
 		<form id="wp-panel-backup-advance" data-running="<?php echo $run ? '1' : '0'; ?>" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 			<?php wp_nonce_field( 'wp-panel-backup-control', '_wp_panel_backup_control_nonce' ); ?>
 			<input type="hidden" name="action" value="wp_panel_backup_control">
-			<input type="hidden" name="operation" value="advance">
+			<input type="hidden" name="operation" value="<?php echo $run ? 'advance' : 'resume'; ?>">
 			<input type="hidden" name="job" value="<?php echo esc_attr( $active['id'] ); ?>">
 			<?php submit_button( '继续备份' ); ?>
 		</form>

@@ -2,7 +2,7 @@
 
 独立 WordPress 源站备份插件，供管理员将常规网站备份为可下载材料，后续由 WP Panel 从备份创建同域名网站。
 
-**当前状态：开发源码已在隔离 WordPress 验证全目录与全库备份、三种模式、下载和清理。** 源码及文档保存在本地 Git，使用 `dist/wp-panel-backup-0.0.0-dev.zip` 作为本轮用户测试包。正式版本及发布方式待后续确认。
+**当前状态：开发源码已在隔离 WordPress 验证全目录与全库备份、三种模式、下载和清理。** 源码及文档保存在本地 Git，本轮用户测试包为 `dist/wp-panel-backup-0.0.0-dev-auto-storage.zip`。正式版本及发布方式待后续确认。
 
 开发顺序：
 
@@ -26,17 +26,12 @@
 
 ## 开发测试站使用
 
-在 WordPress 后台进入「插件 → 安装插件 → 上传插件」，上传 `wp-panel-backup-0.0.0-dev.zip` 并启用。测试包由本地提交中的 `wp-panel-backup.php`、`includes/*.php` 和 `assets/advance.js` 组成。
+在 WordPress 后台进入「插件 → 安装插件 → 上传插件」，上传 `wp-panel-backup-0.0.0-dev-auto-storage.zip` 并启用。测试包由 `wp-panel-backup.php`、`includes/*.php` 和 `assets/advance.js` 组成。
 
-确认站点独占的私有目录位于服务器所有公网文档根和 Web 别名之外，由 PHP 用户持有，权限为 `0700`。核对服务器映射后，才在测试站的 `wp-config.php` 中设置：
+首次开始备份时，插件自动在 `wp-content` 下建立带随机后缀的工作目录，并通过无敏感探测文件自检。自检失败时，请查看后台的具体提示，由主机商设置站内目录禁访规则后重试。
 
-```php
-define( 'WP_PANEL_BACKUP_PRIVATE_DIR', '/absolute/private/site-backups' );
-define( 'WP_PANEL_BACKUP_PRIVATE_DIR_VERIFIED', true );
-```
+在插件列表点 WP PANEL Backup 下方的「设置」，或通过「工具 → WP PANEL Backup」打开备份页。运行预检并选择模式。备份时保持页面打开，离开后可返回继续。完成后下载清单、索引和全部 ZIP，按整套保存。完整材料保留最近两套且最长 7 天，半成品从最后有效推进起保留 7 天。
 
-在「工具 → WP PANEL Backup」运行预检并选择模式。备份时保持页面打开，离开后可返回继续。完成后下载清单、索引和全部 ZIP，按整套保存。完整材料保留最近两套且最长 7 天，半成品从最后有效推进起保留 7 天。
-
-临时维护异常时可在插件页面手动解除，搬家维护须使用「取消搬家并恢复原站」。后台无法访问且确需开放原站时，由主机管理员等当前备份请求结束后，移除该站独占私有目录中的 `maintenance.json`，再进后台确认任务状态。
+临时维护异常时可在插件页面手动解除，搬家维护须使用「取消搬家并恢复原站」。后台无法访问且确需开放原站时，由主机管理员等当前备份请求结束后，移除该站工作目录中的 `maintenance.json`，再进后台确认任务状态。
 
 实际使用范围与已验证限制见[验收记录](docs/acceptance.md)和[开发任务卡](docs/work/active/2026-11-22-plugin-development.md)。

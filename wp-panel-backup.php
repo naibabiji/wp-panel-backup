@@ -27,4 +27,5 @@ if ( is_admin() ) {
 	add_action( 'admin_init', __NAMESPACE__ . '\\maintenance_admin_access', 1 );
 	add_action( 'admin_post_wp_panel_backup_download', __NAMESPACE__ . '\\download_export' );
 	add_action( 'admin_menu', __NAMESPACE__ . '\\register_backup_page' );
+	add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), __NAMESPACE__ . '\\backup_plugin_action_links' );
 }
