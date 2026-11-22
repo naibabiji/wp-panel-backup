@@ -178,6 +178,10 @@ function apply_export_operation( $root, $operation, $id, $mode, $options, $zip_p
 		throw new \RuntimeException( __( '无效的备份操作。', 'wp-panel-backup' ) );
 	}
 	$was_running = export_is_running( $job );
+	if ( $was_running ) {
+		prepare_workspace( $root );
+		prepare_directory_indexes( $directory );
+	}
 	$job = advance_export( $directory, $job );
 	if ( $was_running && 'complete' === $job['phase'] ) {
 		release_maintenance( $root, 'temporary', $job['id'] );

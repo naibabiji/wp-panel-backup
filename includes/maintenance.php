@@ -26,6 +26,7 @@ function release_maintenance( $workspace, $mode, $job_id = '' ) {
 	if ( ! $state || $state['mode'] !== $mode || ( '' !== $job_id && $job_id !== $state['job'] ) ) {
 		return;
 	}
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Remove only the verified local maintenance marker while holding the workspace lock.
 	if ( ! unlink( $workspace . '/maintenance.json' ) ) {
 		throw new RuntimeException( __( '无法解除本插件的维护状态。', 'wp-panel-backup' ) );
 	}

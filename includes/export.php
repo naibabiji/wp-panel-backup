@@ -59,9 +59,11 @@ function create_export( $workspace, $options, $mode, $zip_payload_mib ) {
 	prepare_workspace( $workspace );
 	$id = bin2hex( random_bytes( 16 ) );
 	$directory = $workspace . '/' . $id;
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Create the private directory with mode 0700 in a single operation.
 	if ( ! mkdir( $directory, 0700 ) ) {
 		throw new RuntimeException( __( '无法创建备份任务目录。', 'wp-panel-backup' ) );
 	}
+	prepare_directory_indexes( $directory );
 	$job = array(
 		'id'            => $id,
 		'mode'          => $mode,
@@ -100,7 +102,7 @@ function plan_export_files( $directory, &$job ) {
 		}
 		finish_output( $stream );
 	} finally {
-		fclose( $stream );
+		fclose( $stream ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Release the native stream and any held lock.
 	}
 	$job['phase'] = 'database';
 }
@@ -132,7 +134,7 @@ function open_source_file( $path, $entry ) {
 		/* translators: Relative file or directory path. */
 		throw new RuntimeException( sprintf( __( '备份文件已消失或变成链接/特殊文件：%s', 'wp-panel-backup' ), $entry['path'] ) );
 	}
-	$stream = fopen( $path, 'rb' );
+	$stream = fopen( $path, 'rb' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Native stream supports locking, seeking, and bounded reads.
 	if ( false === $stream ) {
 		/* translators: Relative file or directory path. */
 		throw new RuntimeException( sprintf( __( '无法打开备份文件：%s', 'wp-panel-backup' ), $entry['path'] ) );
@@ -140,7 +142,7 @@ function open_source_file( $path, $entry ) {
 	$opened = fstat( $stream );
 	if ( false === $opened || $opened['dev'] !== $stat['dev'] || $opened['ino'] !== $stat['ino']
 		|| $opened['size'] !== $entry['size'] || $opened['mtime'] !== $entry['mtime'] || $opened['ctime'] !== $entry['ctime'] ) {
-		fclose( $stream );
+		fclose( $stream ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Release the native stream and any held lock.
 		/* translators: Relative file or directory path. */
 		throw new RuntimeException( sprintf( __( '文件在备份期间发生变化，请重新创建备份：%s', 'wp-panel-backup' ), $entry['path'] ) );
 	}
@@ -148,12 +150,12 @@ function open_source_file( $path, $entry ) {
 }
 
 function pack_export_step( $directory, &$job ) {
-	$queue = fopen( $directory . '/queue.ndjson', 'rb' );
+	$queue = fopen( $directory . '/queue.ndjson', 'rb' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Native stream supports locking, seeking, and bounded reads.
 	if ( false === $queue ) {
 		throw new RuntimeException( __( '无法打开备份文件列表。', 'wp-panel-backup' ) );
 	}
 	if ( 0 !== fseek( $queue, $job['queue_offset'] ) ) {
-		fclose( $queue );
+		fclose( $queue ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Release the native stream and any held lock.
 		throw new RuntimeException( __( '无法定位备份文件列表。', 'wp-panel-backup' ) );
 	}
 	$index = open_output( $directory . '/files.ndjson', $job['index_offset'] );
@@ -206,7 +208,7 @@ function pack_export_step( $directory, &$job ) {
 						}
 						finish_output( $part );
 					} finally {
-						fclose( $part );
+						fclose( $part ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Release the native stream and any held lock.
 					}
 					$digest = hash_file( 'sha256', $chunk );
 					if ( false === $digest ) {
@@ -231,7 +233,7 @@ function pack_export_step( $directory, &$job ) {
 						throw new RuntimeException( sprintf( __( '无法计算完整文件校验：%s', 'wp-panel-backup' ), $file['path'] ) );
 					}
 					$check = open_source_file( $source_path, $file );
-					fclose( $check );
+					fclose( $check ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Release the native stream and any held lock.
 					write_bytes( $index, encode_record( array(
 						'kind' => $file['kind'], 'path' => $file['path'], 'size' => $file['size'], 'sha256' => hash_final( $hash ),
 					) ) );
@@ -241,7 +243,7 @@ function pack_export_step( $directory, &$job ) {
 					$job['file'] = null;
 				}
 			} finally {
-				fclose( $stream );
+				fclose( $stream ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Release the native stream and any held lock.
 				unset( $file );
 			}
 		}
@@ -277,8 +279,8 @@ function pack_export_step( $directory, &$job ) {
 			) );
 		}
 	} finally {
-		fclose( $queue );
-		fclose( $index );
+		fclose( $queue ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Release the native stream and any held lock.
+		fclose( $index ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Release the native stream and any held lock.
 	}
 	return $published_members;
 }
@@ -305,6 +307,7 @@ function publish_staged_zip( $directory, $name, $ordinal, $members ) {
 		throw new RuntimeException( storage_error( __( '无法完成 ZIP 分包写入。', 'wp-panel-backup' ), $directory ) );
 	}
 	$package = artifact_metadata( $path, $name );
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Commit the local file atomically.
 	if ( ! @rename( $path, $directory . '/' . $name ) ) {
 		throw new RuntimeException( storage_error( __( '无法保存 ZIP 分包。', 'wp-panel-backup' ), $directory ) );
 	}
@@ -341,7 +344,7 @@ function advance_export( $directory, $job ) {
 		write_record( $directory . '/job.json', $job );
 		// The previous checkpoint still needs these chunks until the new state is saved.
 		for ( $member = 1; $member <= $published_members; ++$member ) {
-			@unlink( staged_chunk_path( $directory, count( $job['packages'] ), $member ) );
+			@unlink( staged_chunk_path( $directory, count( $job['packages'] ), $member ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Remove only a known local workspace path.
 		}
 	} catch ( \Throwable $error ) {
 		$job = $before;
@@ -350,10 +353,10 @@ function advance_export( $directory, $job ) {
 		write_record( $directory . '/job.json', $job );
 	}
 	if ( 'complete' === $job['phase'] ) {
-		unlink( $directory . '/queue.ndjson' );
-		unlink( $directory . '/database.sql' );
+		unlink( $directory . '/queue.ndjson' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Remove only a known local workspace path.
+		unlink( $directory . '/database.sql' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Remove only a known local workspace path.
 		foreach ( glob( $directory . '/chunk-*.raw' ) ?: array() as $chunk ) {
-			@unlink( $chunk );
+			@unlink( $chunk ); // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Remove only a known local workspace path.
 		}
 	}
 	return $job;
@@ -392,11 +395,13 @@ function delete_export( $root, $id ) {
 		if ( $entry->isDot() || 'job.json' === $entry->getFilename() ) {
 			continue;
 		}
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Remove only a known local workspace path.
 		if ( ( ! $entry->isLink() && ! $entry->isFile() ) || ! unlink( $entry->getPathname() ) ) {
 			/* translators: Backup job ID. */
 			throw new RuntimeException( sprintf( __( '无法清除备份材料：%s', 'wp-panel-backup' ), $id ) );
 		}
 	}
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink, WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- Remove only a known local workspace path. Remove the empty local workspace subdirectory.
 	if ( ! unlink( $directory . '/job.json' ) || ! rmdir( $directory ) ) {
 		/* translators: Backup job ID. */
 		throw new RuntimeException( sprintf( __( '无法清除备份任务：%s', 'wp-panel-backup' ), $id ) );

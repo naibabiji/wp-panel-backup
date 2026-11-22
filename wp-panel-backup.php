@@ -1,8 +1,14 @@
 <?php
 /**
  * Plugin Name: WP PANEL Backup
- * Description: 从 WordPress 管理后台检查站点并创建迁移备份。
- * Version: 0.0.0-dev
+ * Description: Export site files and the database as a downloadable migration backup.
+ * Version: 1.0.0
+ * Requires at least: 7.0
+ * Requires PHP: 8.3
+ * Author: WP PANEL
+ * Author URI: https://wp-panel.org/
+ * License: GPL-2.0-or-later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: wp-panel-backup
  */
 

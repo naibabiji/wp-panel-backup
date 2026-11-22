@@ -68,7 +68,7 @@ function download_export() {
 		}
 	} finally {
 		foreach ( $items as $item ) {
-			fclose( $item['stream'] );
+			fclose( $item['stream'] ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Release the native stream and any held lock.
 		}
 	}
 	exit;
@@ -98,12 +98,14 @@ function prepare_download( $directory, $name, $bundle ) {
 		}
 		$artifacts = array( $name => $artifacts[ $name ] );
 	}
+	prepare_workspace( dirname( $directory ) );
+	prepare_directory_indexes( $directory );
 
 	$items = array();
 	try {
 		foreach ( $artifacts as $artifact => $expected_size ) {
 			$path = $directory . '/' . $artifact;
-			$stream = is_file( $path ) && ! is_link( $path ) ? @fopen( $path, 'rb' ) : false;
+			$stream = is_file( $path ) && ! is_link( $path ) ? @fopen( $path, 'rb' ) : false; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Native stream supports locking, seeking, and bounded reads.
 			if ( false === $stream ) {
 				/* translators: Name of the backup file. */
 				throw new RuntimeException( sprintf( __( '无法打开备份材料：%s', 'wp-panel-backup' ), $artifact ) );
@@ -126,7 +128,7 @@ function prepare_download( $directory, $name, $bundle ) {
 		return $items;
 	} catch ( \Throwable $error ) {
 		foreach ( $items as $item ) {
-			fclose( $item['stream'] );
+			fclose( $item['stream'] ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Release the native stream and any held lock.
 		}
 		throw $error;
 	}

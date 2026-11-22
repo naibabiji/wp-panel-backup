@@ -234,6 +234,6 @@ function export_database_step( $directory, &$job ) {
 		/* translators: 1: Database table name, 2: Export error message. */
 		throw new RuntimeException( sprintf( __( '导出表 %1$s 失败：%2$s', 'wp-panel-backup' ), $table, $message ), 0, $error );
 	} finally {
-		fclose( $stream );
+		fclose( $stream ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Close the native SQL output stream.
 	}
 }

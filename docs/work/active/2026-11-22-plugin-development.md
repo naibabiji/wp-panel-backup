@@ -169,3 +169,11 @@
 - 运行官方 Plugin Check 静态检查。英文 readme 消除语言错误。异常消息在 HTML 输出时统一转义，JSON、状态记录和 TAR 二进制输出保留原始内容。数据库元数据查询来自固定语句及明确引用的标识符。
 - 修订后的基线仍有 38 个错误和 40 个警告。错误包括 4 个待补的许可证和 readme 字段，以及 34 条原生文件 I/O 检查。备份使用本地文件流分块读写，依赖原生句柄锁、偏移恢复、原子重命名及 ZIP 生成，不能简单替换成整文件内存读写。其余包括请求读取、数据库查询和工具对 WP 命名的提示。最终候选包仍需复检。
 - 阶段交接包括本地提交及开发测试包 `dist/wp-panel-backup-0.0.0-dev-review.zip`，从提交中选择明确的运行文件和英文说明。公开提交包等待发布决定补全后生成。
+
+## 1.0.0 本地提交候选
+
+- 用户已确认 GPL-2.0-or-later、首版 1.0.0、作者 WP PANEL、贡献者 naibabiji，最低 WordPress 7.0 / PHP 8.3。主文件、公开 readme 和 GPL v2 正文已补齐，Tested up to 采用本轮实测的 WordPress 7.0。
+- 对照已有的 All-in-One WP Migration 源码中工作目录的 Apache、IIS 和双索引文件，以及 Duplicator 的子目录索引策略。采用其做法并独立实现配置生成。保留随机目录及 Apache 禁访，增加 IIS 禁访文件和根目录、任务子目录的 index.php / index.html。旧任务继续或下载时补齐，尊重现有保护文件。Nginx 仍由主机管理员设置文档中的目录禁访，无服务器回环和阻塞式检查。
+- 隔离 WordPress 7.0、PHP 8.3、MariaDB 11.8 实测禁用 WordPress HTTP 后仍能备份与后台下载。Apache 对任务状态、直接 ZIP、清单及目录返回 403，普通资源返回 200。单独用 Nginx 验证规则拦截合成备份而保留普通静态文件。IIS 仅核对配置生成，未运行 IIS 服务。
+- 重组实际样本核对了 8,048 条源路径和 1 个 ZIP。SQL 导入隔离库后 12 张表结构、索引及数据相符，逐行比对跳过 WordPress 自身更新的 cron 执行锁。官方 Plugin Check 静态扫描为 0 错误、40 条警告。剩余项包括 WP 名称、入口前置路由及请求字段、动态数据库查询；原生保密目录、流式传输、锁及原子操作保留，针对必要调用记录原因。
+- 候选 ZIP 为 dist/wp-panel-backup-1.0.0.zip，从本地提交打包并核对。范围是运行文件、readme.txt 和 LICENSE.txt。未提交至 WordPress.org、未部署。

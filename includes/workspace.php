@@ -38,10 +38,12 @@ function workspace( $create = false ) {
 		throw new RuntimeException( __( '无法使用当前 WordPress 内容目录。', 'wp-panel-backup' ) );
 	}
 	$path = $content . '/' . WORKSPACE_PREFIX . $record['suffix'];
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Create the private directory with mode 0700 in a single operation.
 	if ( $create && ! file_exists( $path ) && ! is_link( $path ) && ! @mkdir( $path, 0700 ) && ! is_dir( $path ) ) {
 		throw new RuntimeException( __( 'WordPress 无法在 wp-content 创建备份工作目录，请检查 PHP 写权限。', 'wp-panel-backup' ) );
 	}
 	if ( realpath( $path ) !== $path || ! is_dir( $path ) || 0700 !== ( fileperms( $path ) & 0777 )
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_is_writable -- Check the effective local PHP process permissions.
 		|| ! is_readable( $path ) || ! is_writable( $path ) || ! is_executable( $path )
 		|| ( function_exists( 'posix_geteuid' ) && fileowner( $path ) !== posix_geteuid() ) ) {
 		throw new RuntimeException( __( '备份工作目录不可用，请检查目录归属、0700 权限及链接设置。', 'wp-panel-backup' ) );
@@ -66,7 +68,7 @@ function with_workspace_lock( $callback, $create = false ) {
 	if ( null === $root ) {
 		throw new RuntimeException( __( '尚未创建备份工作目录，请先开始备份。', 'wp-panel-backup' ) );
 	}
-	$lock = fopen( $root . '/lock', 'c+b' );
+	$lock = fopen( $root . '/lock', 'c+b' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Native stream supports locking, seeking, and bounded reads.
 	if ( false === $lock ) {
 		throw new RuntimeException( __( '无法打开备份锁。', 'wp-panel-backup' ) );
 	}
@@ -79,34 +81,45 @@ function with_workspace_lock( $callback, $create = false ) {
 		}
 		return $callback( $root );
 	} finally {
-		fclose( $lock );
+		fclose( $lock ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Release the native stream and any held lock.
 	}
 }
 
 function prepare_workspace( $root ) {
 	ensure_workspace_file( $root . '/.htaccess', "<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\nOrder allow,deny\nDeny from all\n</IfModule>\n" );
-	ensure_workspace_file( $root . '/index.html', "<!doctype html><meta charset=\"utf-8\"><title></title>\n" );
-
+	ensure_workspace_file(
+		$root . '/web.config',
+		"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<configuration>\n  <system.webServer>\n    <security>\n      <authorization>\n        <clear />\n        <add accessType=\"Deny\" users=\"*\" />\n      </authorization>\n    </security>\n  </system.webServer>\n</configuration>\n"
+	);
+	prepare_directory_indexes( $root );
 
 	if ( ! is_file( $root . '/site.json' ) ) {
 		write_record( $root . '/site.json', array( 'site' => site_identity() ) );
 	}
 }
 
+function prepare_directory_indexes( $directory ) {
+	ensure_workspace_file( $directory . '/index.php', "<?php\nhttp_response_code( 403 );\nexit;\n" );
+	ensure_workspace_file( $directory . '/index.html', "<!doctype html><meta charset=\"utf-8\"><title></title>\n" );
+}
+
 function ensure_workspace_file( $path, $content ) {
 	if ( is_file( $path ) && ! is_link( $path ) ) {
 		return;
 	}
-	$stream = @fopen( $path, 'xb' );
+	$stream = @fopen( $path, 'xb' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Native stream supports locking, seeking, and bounded reads.
 	if ( false === $stream ) {
 		/* translators: Name of the workspace protection file. */
 		throw new RuntimeException( storage_error( sprintf( __( '无法创建备份目录文件 %s。', 'wp-panel-backup' ), basename( $path ) ), dirname( $path ) ) );
 	}
 	try {
 		write_bytes( $stream, $content );
-	} finally {
-		fclose( $stream );
+	} catch ( \Throwable $error ) {
+		fclose( $stream ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Release the native stream and any held lock.
+		@unlink( $path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Remove only a known local workspace path.
+		throw $error;
 	}
+	fclose( $stream ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Release the native stream and any held lock.
 }
 
 function encode_record( $value ) {
@@ -118,6 +131,7 @@ function encode_record( $value ) {
 }
 
 function write_bytes( $stream, $value ) {
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- Write a bounded chunk to an open stream.
 	if ( strlen( $value ) !== @fwrite( $stream, $value ) ) {
 		throw new RuntimeException( storage_error( __( '备份写入失败。', 'wp-panel-backup' ), dirname( stream_get_meta_data( $stream )['uri'] ) ) );
 	}
@@ -134,6 +148,7 @@ function storage_error( $message, $directory ) {
 
 function write_record( $path, $value ) {
 	$json = encode_record( $value );
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Commit the local file atomically.
 	if ( strlen( $json ) !== @file_put_contents( $path . '.tmp', $json ) || ! @rename( $path . '.tmp', $path ) ) {
 		throw new RuntimeException( storage_error( __( '无法保存备份状态。', 'wp-panel-backup' ), dirname( $path ) ) );
 	}
@@ -148,12 +163,12 @@ function read_record( $path ) {
 }
 
 function open_output( $path, $offset ) {
-	$stream = @fopen( $path, 'c+b' );
+	$stream = @fopen( $path, 'c+b' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Native stream supports locking, seeking, and bounded reads.
 	if ( false === $stream ) {
 		throw new RuntimeException( storage_error( __( '无法创建备份数据文件。', 'wp-panel-backup' ), dirname( $path ) ) );
 	}
 	if ( fstat( $stream )['size'] < $offset || ! ftruncate( $stream, $offset ) || 0 !== fseek( $stream, $offset ) ) {
-		fclose( $stream );
+		fclose( $stream ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Release the native stream and any held lock.
 		throw new RuntimeException( __( '备份数据文件长度不匹配。', 'wp-panel-backup' ) );
 	}
 	return $stream;
