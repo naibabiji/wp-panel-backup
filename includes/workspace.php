@@ -2,6 +2,8 @@
 
 namespace WPPanelBackup;
 
+// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exceptions are plain text. Escape at HTML output so JSON responses and saved job status retain the original text.
+
 use RuntimeException;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -28,24 +30,24 @@ function workspace( $create = false ) {
 	}
 	if ( ! is_array( $record ) || ( $record['site'] ?? '' ) !== $identity
 		|| ! is_string( $record['suffix'] ?? null ) || ! preg_match( '/^[a-f0-9]{32}$/D', $record['suffix'] ) ) {
-		throw new RuntimeException( '无法读取本机工作目录配置。' );
+		throw new RuntimeException( __( '无法读取本机工作目录配置。', 'wp-panel-backup' ) );
 	}
 
 	$content = rtrim( WP_CONTENT_DIR, '/' );
 	if ( realpath( $content ) !== $content || ! is_dir( $content ) ) {
-		throw new RuntimeException( '无法使用当前 WordPress 内容目录。' );
+		throw new RuntimeException( __( '无法使用当前 WordPress 内容目录。', 'wp-panel-backup' ) );
 	}
 	$path = $content . '/' . WORKSPACE_PREFIX . $record['suffix'];
 	if ( $create && ! file_exists( $path ) && ! is_link( $path ) && ! @mkdir( $path, 0700 ) && ! is_dir( $path ) ) {
-		throw new RuntimeException( 'WordPress 无法在 wp-content 创建备份工作目录，请检查 PHP 写权限。' );
+		throw new RuntimeException( __( 'WordPress 无法在 wp-content 创建备份工作目录，请检查 PHP 写权限。', 'wp-panel-backup' ) );
 	}
 	if ( realpath( $path ) !== $path || ! is_dir( $path ) || 0700 !== ( fileperms( $path ) & 0777 )
 		|| ! is_readable( $path ) || ! is_writable( $path ) || ! is_executable( $path )
 		|| ( function_exists( 'posix_geteuid' ) && fileowner( $path ) !== posix_geteuid() ) ) {
-		throw new RuntimeException( '备份工作目录不可用，请检查目录归属、0700 权限及链接设置。' );
+		throw new RuntimeException( __( '备份工作目录不可用，请检查目录归属、0700 权限及链接设置。', 'wp-panel-backup' ) );
 	}
 	if ( is_file( $path . '/site.json' ) && array( 'site' => $identity ) !== read_record( $path . '/site.json' ) ) {
-		throw new RuntimeException( '工作目录已绑定到另一份 WordPress 安装。' );
+		throw new RuntimeException( __( '工作目录已绑定到另一份 WordPress 安装。', 'wp-panel-backup' ) );
 	}
 	return $path;
 }
@@ -54,7 +56,7 @@ function site_identity() {
 	$root = realpath( ABSPATH );
 	$stat = false === $root ? false : stat( $root );
 	if ( false === $stat ) {
-		throw new RuntimeException( '无法识别当前 WordPress 安装位置。' );
+		throw new RuntimeException( __( '无法识别当前 WordPress 安装位置。', 'wp-panel-backup' ) );
 	}
 	return hash( 'sha256', $root . "\0" . $stat['dev'] . "\0" . $stat['ino'] );
 }
@@ -62,18 +64,18 @@ function site_identity() {
 function with_workspace_lock( $callback, $create = false ) {
 	$root = workspace( $create );
 	if ( null === $root ) {
-		throw new RuntimeException( '尚未创建备份工作目录，请先开始备份。' );
+		throw new RuntimeException( __( '尚未创建备份工作目录，请先开始备份。', 'wp-panel-backup' ) );
 	}
 	$lock = fopen( $root . '/lock', 'c+b' );
 	if ( false === $lock ) {
-		throw new RuntimeException( '无法打开备份锁。' );
+		throw new RuntimeException( __( '无法打开备份锁。', 'wp-panel-backup' ) );
 	}
 	try {
 		if ( ! flock( $lock, LOCK_EX | LOCK_NB ) ) {
-			throw new RuntimeException( '另一个备份请求正在运行，请稍后重试。' );
+			throw new RuntimeException( __( '另一个备份请求正在运行，请稍后重试。', 'wp-panel-backup' ) );
 		}
 		if ( $root !== workspace() ) {
-			throw new RuntimeException( '备份工作目录已更改，请重新打开备份页面。' );
+			throw new RuntimeException( __( '备份工作目录已更改，请重新打开备份页面。', 'wp-panel-backup' ) );
 		}
 		return $callback( $root );
 	} finally {
@@ -97,7 +99,8 @@ function ensure_workspace_file( $path, $content ) {
 	}
 	$stream = @fopen( $path, 'xb' );
 	if ( false === $stream ) {
-		throw new RuntimeException( storage_error( '无法创建备份目录文件 ' . basename( $path ) . '。', dirname( $path ) ) );
+		/* translators: Name of the workspace protection file. */
+		throw new RuntimeException( storage_error( sprintf( __( '无法创建备份目录文件 %s。', 'wp-panel-backup' ), basename( $path ) ), dirname( $path ) ) );
 	}
 	try {
 		write_bytes( $stream, $content );
@@ -109,36 +112,37 @@ function ensure_workspace_file( $path, $content ) {
 function encode_record( $value ) {
 	$json = json_encode( $value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
 	if ( false === $json ) {
-		throw new RuntimeException( '无法编码备份记录。' );
+		throw new RuntimeException( __( '无法编码备份记录。', 'wp-panel-backup' ) );
 	}
 	return $json . "\n";
 }
 
 function write_bytes( $stream, $value ) {
 	if ( strlen( $value ) !== @fwrite( $stream, $value ) ) {
-		throw new RuntimeException( storage_error( '备份写入失败。', dirname( stream_get_meta_data( $stream )['uri'] ) ) );
+		throw new RuntimeException( storage_error( __( '备份写入失败。', 'wp-panel-backup' ), dirname( stream_get_meta_data( $stream )['uri'] ) ) );
 	}
 }
 
 function storage_error( $message, $directory ) {
 	$free = function_exists( 'disk_free_space' ) ? @disk_free_space( $directory ) : false;
 	if ( false !== $free ) {
-		return $message . sprintf( '文件系统显示剩余 %s，请检查主机账号配额及目录写权限。', size_format( $free, 1 ) );
+		/* translators: Amount of free disk space. */
+		return $message . sprintf( __( '文件系统显示剩余 %s，请检查主机账号配额及目录写权限。', 'wp-panel-backup' ), size_format( $free, 1 ) );
 	}
-	return $message . '请检查磁盘空间、主机账号配额及目录写权限。';
+	return $message . __( '请检查磁盘空间、主机账号配额及目录写权限。', 'wp-panel-backup' );
 }
 
 function write_record( $path, $value ) {
 	$json = encode_record( $value );
 	if ( strlen( $json ) !== @file_put_contents( $path . '.tmp', $json ) || ! @rename( $path . '.tmp', $path ) ) {
-		throw new RuntimeException( storage_error( '无法保存备份状态。', dirname( $path ) ) );
+		throw new RuntimeException( storage_error( __( '无法保存备份状态。', 'wp-panel-backup' ), dirname( $path ) ) );
 	}
 }
 
 function read_record( $path ) {
 	$json = is_file( $path ) ? json_decode( file_get_contents( $path ), true ) : null;
 	if ( ! is_array( $json ) ) {
-		throw new RuntimeException( '无法读取备份记录。' );
+		throw new RuntimeException( __( '无法读取备份记录。', 'wp-panel-backup' ) );
 	}
 	return $json;
 }
@@ -146,11 +150,11 @@ function read_record( $path ) {
 function open_output( $path, $offset ) {
 	$stream = @fopen( $path, 'c+b' );
 	if ( false === $stream ) {
-		throw new RuntimeException( storage_error( '无法创建备份数据文件。', dirname( $path ) ) );
+		throw new RuntimeException( storage_error( __( '无法创建备份数据文件。', 'wp-panel-backup' ), dirname( $path ) ) );
 	}
 	if ( fstat( $stream )['size'] < $offset || ! ftruncate( $stream, $offset ) || 0 !== fseek( $stream, $offset ) ) {
 		fclose( $stream );
-		throw new RuntimeException( '备份数据文件长度不匹配。' );
+		throw new RuntimeException( __( '备份数据文件长度不匹配。', 'wp-panel-backup' ) );
 	}
 	return $stream;
 }
@@ -158,7 +162,7 @@ function open_output( $path, $offset ) {
 function finish_output( $stream ) {
 	$offset = ftell( $stream );
 	if ( false === $offset || ! @fflush( $stream ) ) {
-		throw new RuntimeException( storage_error( '无法保存备份数据文件。', dirname( stream_get_meta_data( $stream )['uri'] ) ) );
+		throw new RuntimeException( storage_error( __( '无法保存备份数据文件。', 'wp-panel-backup' ), dirname( stream_get_meta_data( $stream )['uri'] ) ) );
 	}
 	return $offset;
 }

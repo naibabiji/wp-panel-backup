@@ -2,6 +2,8 @@
 
 namespace WPPanelBackup;
 
+// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exceptions are plain text. Escape at HTML output so JSON responses and saved job status retain the original text.
+
 use RuntimeException;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -31,7 +33,7 @@ function require_database_visibility() {
 		$required = array_diff( $required, explode( ', ', $parts[1] ) );
 	}
 	if ( $required ) {
-		throw new RuntimeException( '当前数据库账号的直接授权不足以核对全库对象，请由主机管理员检查数据库级读取及对象可见权限。' );
+		throw new RuntimeException( __( '当前数据库账号的直接授权不足以核对全库对象，请由主机管理员检查数据库级读取及对象可见权限。', 'wp-panel-backup' ) );
 	}
 }
 
@@ -39,7 +41,8 @@ function export_table_list( $source ) {
 	$statuses = array_column( database_rows( 'SHOW TABLE STATUS' ), 'Engine', 'Name' );
 	foreach ( $source['tables'] as $table ) {
 		if ( 0 !== strcasecmp( 'InnoDB', $statuses[ $table ] ?? '' ) ) {
-			throw new RuntimeException( '发现非 InnoDB 表，当前版本无法备份：' . $table );
+			/* translators: Database table name. */
+			throw new RuntimeException( sprintf( __( '发现非 InnoDB 表，当前版本无法备份：%s', 'wp-panel-backup' ), $table ) );
 		}
 	}
 	return $source['tables'];
@@ -89,19 +92,19 @@ function sql_literal( $value, $column, $for_key = false ) {
 	$type = $column['type'];
 	if ( in_array( $type, array( 'bit', 'tinyint', 'smallint', 'mediumint', 'int', 'bigint', 'decimal', 'float', 'double', 'year' ), true ) ) {
 		if ( ! preg_match( '/^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:e[+-]?[0-9]+)?$/iD', $value ) ) {
-			throw new RuntimeException( '读到无法导出的数据库数值。' );
+			throw new RuntimeException( __( '读到无法导出的数据库数值。', 'wp-panel-backup' ) );
 		}
 		return $value;
 	}
 	if ( in_array( $type, array( 'geometry', 'point', 'linestring', 'polygon', 'multipoint', 'multilinestring', 'multipolygon', 'geometrycollection' ), true ) ) {
 		if ( ! preg_match( '/^([0-9]+):([0-9A-F]+)$/D', $value, $parts ) ) {
-			throw new RuntimeException( '读到无法导出的空间数据。' );
+			throw new RuntimeException( __( '读到无法导出的空间数据。', 'wp-panel-backup' ) );
 		}
 		return "ST_GeomFromWKB(X'{$parts[2]}', {$parts[1]})";
 	}
 	$length = strlen( $value );
 	if ( $length % 2 || strspn( $value, '0123456789ABCDEF' ) !== $length ) {
-		throw new RuntimeException( '读到无法导出的数据库字节。' );
+		throw new RuntimeException( __( '读到无法导出的数据库字节。', 'wp-panel-backup' ) );
 	}
 	$binary = "X'{$value}'";
 	if ( 'json' === $type ) {
@@ -163,16 +166,16 @@ function export_database_step( $directory, &$job ) {
 		$session = array_values( database_rows( 'SELECT @@session.time_zone' )[0] );
 		$connection = $wpdb->dbh;
 		if ( ! $connection instanceof \mysqli ) {
-			throw new RuntimeException( '当前 WordPress 数据库连接不支持流式读取。' );
+			throw new RuntimeException( __( '当前 WordPress 数据库连接不支持流式读取。', 'wp-panel-backup' ) );
 		}
 		$result = false;
 		try {
 			if ( ! $connection->query( "SET SESSION time_zone = '+00:00'" ) ) {
-				throw new RuntimeException( '无法设置数据库导出时区。' );
+				throw new RuntimeException( __( '无法设置数据库导出时区。', 'wp-panel-backup' ) );
 			}
 			$result = $connection->query( $query, MYSQLI_USE_RESULT );
 			if ( ! $result ) {
-				throw new RuntimeException( '无法读取数据行。' );
+				throw new RuntimeException( __( '无法读取数据行。', 'wp-panel-backup' ) );
 			}
 			$row_count = 0;
 			$written = 0;
@@ -195,14 +198,14 @@ function export_database_step( $directory, &$job ) {
 					$last[ $key ] = $row[ count( $names ) + $index ];
 				}
 				if ( ! $primary && microtime( true ) - $started > 15 ) {
-					throw new RuntimeException( '无主键表无法在一次短请求内导完。' );
+					throw new RuntimeException( __( '无主键表无法在一次短请求内导完。', 'wp-panel-backup' ) );
 				}
 				if ( $primary && $written >= 4 * 1024 * 1024 ) {
 					break;
 				}
 			}
 			if ( $connection->errno || ( isset( $row ) && false === $row ) ) {
-				throw new RuntimeException( '数据库数据流读取中断。' );
+				throw new RuntimeException( __( '数据库数据流读取中断。', 'wp-panel-backup' ) );
 			}
 		} finally {
 			if ( $result instanceof \mysqli_result ) {
@@ -227,8 +230,9 @@ function export_database_step( $directory, &$job ) {
 		}
 		$job['sql_offset'] = finish_output( $stream );
 	} catch ( \Throwable $error ) {
-		$message = $error instanceof \mysqli_sql_exception ? '数据库查询或读取失败。' : $error->getMessage();
-		throw new RuntimeException( '导出表 ' . $table . ' 失败：' . $message, 0, $error );
+		$message = $error instanceof \mysqli_sql_exception ? __( '数据库查询或读取失败。', 'wp-panel-backup' ) : $error->getMessage();
+		/* translators: 1: Database table name, 2: Export error message. */
+		throw new RuntimeException( sprintf( __( '导出表 %1$s 失败：%2$s', 'wp-panel-backup' ), $table, $message ), 0, $error );
 	} finally {
 		fclose( $stream );
 	}

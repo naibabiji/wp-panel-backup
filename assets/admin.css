@@ -15,7 +15,16 @@
 }
 
 .wp-panel-backup .wppb-header {
-	margin: 24px 0 18px;
+	margin-top: 22px;
+}
+
+.wp-panel-backup .wppb-header-content {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px 24px;
+	padding: 16px 18px;
 }
 
 .wp-panel-backup .wppb-header h1 {
@@ -26,11 +35,11 @@
 }
 
 .wp-panel-backup .wppb-header p {
-	margin: 7px 0 6px;
+	margin: 6px 0 0;
 	color: var(--wppb-muted);
 }
 
-.wp-panel-backup .wppb-header a {
+.wp-panel-backup .wppb-site-link {
 	color: var(--wppb-green-dark);
 	text-underline-offset: 3px;
 }
@@ -38,8 +47,9 @@
 .wp-panel-backup .wppb-tabs {
 	display: flex;
 	gap: 22px;
-	margin-bottom: 14px;
-	border-bottom: 1px solid var(--wppb-line);
+	padding-inline: 18px;
+	border-top: 1px solid var(--wppb-line);
+	background: var(--wppb-subtle);
 }
 
 .wp-panel-backup .wppb-tabs a {
@@ -59,6 +69,7 @@
 	font-weight: 600;
 }
 
+.wp-panel-backup .wppb-header,
 .wp-panel-backup .wppb-card,
 .wp-panel-backup .wppb-list {
 	margin-bottom: 14px;

@@ -4,6 +4,7 @@
 		return;
 	}
 
+	const { __ } = wp.i18n;
 	const panel = document.getElementById('wp-panel-backup-progress');
 	const maintenance = document.getElementById('wp-panel-backup-maintenance');
 	const field = (name) => panel.querySelector('[data-progress="' + name + '"]');
@@ -23,9 +24,9 @@
 	}
 
 	function pause(message) {
-		update('hint', '备份已暂停，可以从已保存的进度继续。');
+		update('hint', __('备份已暂停，可以从已保存的进度继续。', 'wp-panel-backup'));
 		update('error', message);
-		resume.textContent = '继续备份';
+		resume.textContent = __('继续备份', 'wp-panel-backup');
 		form.hidden = false;
 	}
 
@@ -47,7 +48,7 @@
 				return;
 			}
 			if (!response.ok || !result.success) {
-				pause(result.data?.message || '无法继续备份。请重新打开备份页面后重试。');
+				pause(result.data?.message || __('无法继续备份。请重新打开备份页面后重试。', 'wp-panel-backup'));
 				return;
 			}
 
@@ -71,7 +72,7 @@
 			}
 		} catch {
 			if (!leaving && !queuedAction) {
-				pause('未收到备份请求的有效响应。请检查网络或重新登录，然后继续备份。');
+				pause(__('未收到备份请求的有效响应。请检查网络或重新登录，然后继续备份。', 'wp-panel-backup'));
 			}
 		} finally {
 			pending = false;
@@ -84,7 +85,7 @@
 	function run() {
 		form.hidden = true;
 		update('error', '');
-		update('hint', '备份正在进行。请保持此页打开，关闭后可返回继续。');
+		update('hint', __('备份正在进行。请保持此页打开，关闭后可返回继续。', 'wp-panel-backup'));
 		timer = window.setTimeout(advance, 300);
 	}
 
@@ -99,7 +100,7 @@
 			if (!queuedAction) {
 				queuedAction = event.currentTarget;
 				queuedAction.querySelector('[type="submit"]').disabled = true;
-				update('hint', '当前批次结束后将执行此操作。');
+				update('hint', __('当前批次结束后将执行此操作。', 'wp-panel-backup'));
 			}
 		}
 	}

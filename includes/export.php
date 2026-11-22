@@ -2,6 +2,8 @@
 
 namespace WPPanelBackup;
 
+// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exceptions are plain text. Escape at HTML output so JSON responses and saved job status retain the original text.
+
 use RuntimeException;
 use ZipArchive;
 
@@ -18,46 +20,47 @@ const PACK_REQUEST_BYTES = 64 * 1024 * 1024;
 
 function validate_export_source() {
 	if ( ! class_exists( ZipArchive::class ) || PHP_INT_SIZE < 8 ) {
-		throw new RuntimeException( '备份需要 PHP Zip 扩展及 64 位的 PHP 文件偏移支持。' );
+		throw new RuntimeException( __( '备份需要 PHP Zip 扩展及 64 位的 PHP 文件偏移支持。', 'wp-panel-backup' ) );
 	}
 	$source = inspect_source();
 	require_database_visibility();
 	$source['tables'] = export_table_list( $source );
 
 	if ( ! is_file( $source['root'] . '/wp-config.php' ) ) {
-		throw new RuntimeException( '未找到根目录 wp-config.php，本版无法携带供迁移参考的配置。' );
+		throw new RuntimeException( __( '未找到根目录 wp-config.php，本版无法携带供迁移参考的配置。', 'wp-panel-backup' ) );
 	}
 	if ( file_exists( WP_CONTENT_DIR . '/db.php' ) ) {
-		throw new RuntimeException( '发现本版无法迁移的配置依赖：db.php' );
+		throw new RuntimeException( __( '发现本版无法迁移的配置依赖：db.php', 'wp-panel-backup' ) );
 	}
 	foreach ( array( 'CUSTOM_USER_TABLE', 'CUSTOM_USER_META_TABLE' ) as $constant ) {
 		if ( defined( $constant ) && constant( $constant ) ) {
-			throw new RuntimeException( '发现本版无法迁移的站点运行配置：' . $constant );
+			/* translators: Name of the unsupported WordPress configuration constant. */
+			throw new RuntimeException( sprintf( __( '发现本版无法迁移的站点运行配置：%s', 'wp-panel-backup' ), $constant ) );
 		}
 	}
 	$content = $source['root'] . '/wp-content';
 	if ( rtrim( WP_CONTENT_DIR, '/' ) !== $content || rtrim( WP_PLUGIN_DIR, '/' ) !== $content . '/plugins'
 		|| rtrim( WPMU_PLUGIN_DIR, '/' ) !== $content . '/mu-plugins'
 		|| ( defined( 'UPLOADS' ) && 'wp-content/uploads' !== trim( UPLOADS, '/' ) ) ) {
-		throw new RuntimeException( '发现依赖自定义 WordPress 内容路径常量的布局，当前版本无法迁移。' );
+		throw new RuntimeException( __( '发现依赖自定义 WordPress 内容路径常量的布局，当前版本无法迁移。', 'wp-panel-backup' ) );
 	}
 	$upload_path = get_option( 'upload_path' );
 	if ( is_string( $upload_path ) && preg_match( '~^(?:/|[a-z]:[/\\\\])~i', $upload_path ) ) {
-		throw new RuntimeException( '媒体上传配置依赖源站的绝对路径，当前版本无法迁移。' );
+		throw new RuntimeException( __( '媒体上传配置依赖源站的绝对路径，当前版本无法迁移。', 'wp-panel-backup' ) );
 	}
 	return $source;
 }
 
 function create_export( $workspace, $options, $mode, $zip_payload_mib ) {
 	if ( ! in_array( $zip_payload_mib, ZIP_PAYLOAD_OPTIONS, true ) ) {
-		throw new RuntimeException( '请选择支持的 ZIP 分包大小。' );
+		throw new RuntimeException( __( '请选择支持的 ZIP 分包大小。', 'wp-panel-backup' ) );
 	}
 	$source = validate_export_source();
 	prepare_workspace( $workspace );
 	$id = bin2hex( random_bytes( 16 ) );
 	$directory = $workspace . '/' . $id;
 	if ( ! mkdir( $directory, 0700 ) ) {
-		throw new RuntimeException( '无法创建备份任务目录。' );
+		throw new RuntimeException( __( '无法创建备份任务目录。', 'wp-panel-backup' ) );
 	}
 	$job = array(
 		'id'            => $id,
@@ -106,17 +109,17 @@ function read_queue_entry( $stream, &$job ) {
 	$line = fgets( $stream );
 	if ( false === $line ) {
 		if ( ! feof( $stream ) ) {
-			throw new RuntimeException( '无法读取备份文件列表。' );
+			throw new RuntimeException( __( '无法读取备份文件列表。', 'wp-panel-backup' ) );
 		}
 		return null;
 	}
 	$entry = json_decode( $line, true );
 	if ( ! is_array( $entry ) ) {
-		throw new RuntimeException( '备份文件列表损坏。' );
+		throw new RuntimeException( __( '备份文件列表损坏。', 'wp-panel-backup' ) );
 	}
 	$position = ftell( $stream );
 	if ( false === $position ) {
-		throw new RuntimeException( '无法记录备份文件列表的位置。' );
+		throw new RuntimeException( __( '无法记录备份文件列表的位置。', 'wp-panel-backup' ) );
 	}
 	$job['queue_offset'] = $position;
 	return $entry;
@@ -126,17 +129,20 @@ function open_source_file( $path, $entry ) {
 	clearstatcache( true, $path );
 	$stat = lstat( $path );
 	if ( false === $stat || realpath( $path ) !== $path || 0100000 !== ( $stat['mode'] & 0170000 ) || 1 !== $stat['nlink'] ) {
-		throw new RuntimeException( '备份文件已消失或变成链接/特殊文件：' . $entry['path'] );
+		/* translators: Relative file or directory path. */
+		throw new RuntimeException( sprintf( __( '备份文件已消失或变成链接/特殊文件：%s', 'wp-panel-backup' ), $entry['path'] ) );
 	}
 	$stream = fopen( $path, 'rb' );
 	if ( false === $stream ) {
-		throw new RuntimeException( '无法打开备份文件：' . $entry['path'] );
+		/* translators: Relative file or directory path. */
+		throw new RuntimeException( sprintf( __( '无法打开备份文件：%s', 'wp-panel-backup' ), $entry['path'] ) );
 	}
 	$opened = fstat( $stream );
 	if ( false === $opened || $opened['dev'] !== $stat['dev'] || $opened['ino'] !== $stat['ino']
 		|| $opened['size'] !== $entry['size'] || $opened['mtime'] !== $entry['mtime'] || $opened['ctime'] !== $entry['ctime'] ) {
 		fclose( $stream );
-		throw new RuntimeException( '文件在备份期间发生变化，请重新创建备份：' . $entry['path'] );
+		/* translators: Relative file or directory path. */
+		throw new RuntimeException( sprintf( __( '文件在备份期间发生变化，请重新创建备份：%s', 'wp-panel-backup' ), $entry['path'] ) );
 	}
 	return $stream;
 }
@@ -144,11 +150,11 @@ function open_source_file( $path, $entry ) {
 function pack_export_step( $directory, &$job ) {
 	$queue = fopen( $directory . '/queue.ndjson', 'rb' );
 	if ( false === $queue ) {
-		throw new RuntimeException( '无法打开备份文件列表。' );
+		throw new RuntimeException( __( '无法打开备份文件列表。', 'wp-panel-backup' ) );
 	}
 	if ( 0 !== fseek( $queue, $job['queue_offset'] ) ) {
 		fclose( $queue );
-		throw new RuntimeException( '无法定位备份文件列表。' );
+		throw new RuntimeException( __( '无法定位备份文件列表。', 'wp-panel-backup' ) );
 	}
 	$index = open_output( $directory . '/files.ndjson', $job['index_offset'] );
 	$ordinal = count( $job['packages'] ) + 1;
@@ -191,10 +197,12 @@ function pack_export_step( $directory, &$job ) {
 					$part = open_output( $chunk, 0 );
 					try {
 						if ( 0 !== fseek( $stream, $file['offset'] ) ) {
-							throw new RuntimeException( '无法完整读取文件块：' . $file['path'] );
+							/* translators: Relative file or directory path. */
+							throw new RuntimeException( sprintf( __( '无法完整读取文件块：%s', 'wp-panel-backup' ), $file['path'] ) );
 						}
 						if ( $length !== @stream_copy_to_stream( $stream, $part, $length ) ) {
-							throw new RuntimeException( storage_error( '无法完整复制文件块：' . $file['path'] . '。', $directory ) );
+							/* translators: Relative file or directory path. */
+							throw new RuntimeException( storage_error( sprintf( __( '无法完整复制文件块：%s。', 'wp-panel-backup' ), $file['path'] ), $directory ) );
 						}
 						finish_output( $part );
 					} finally {
@@ -202,7 +210,7 @@ function pack_export_step( $directory, &$job ) {
 					}
 					$digest = hash_file( 'sha256', $chunk );
 					if ( false === $digest ) {
-						throw new RuntimeException( '无法校验文件块。' );
+						throw new RuntimeException( __( '无法校验文件块。', 'wp-panel-backup' ) );
 					}
 					write_bytes( $index, encode_record( array(
 						'kind' => 'block', 'target' => $file['kind'], 'path' => $file['path'],
@@ -214,11 +222,13 @@ function pack_export_step( $directory, &$job ) {
 				}
 				if ( $file['offset'] === $file['size'] ) {
 					if ( ! rewind( $stream ) ) {
-						throw new RuntimeException( '无法重新读取文件以生成完整校验：' . $file['path'] );
+						/* translators: Relative file or directory path. */
+						throw new RuntimeException( sprintf( __( '无法重新读取文件以生成完整校验：%s', 'wp-panel-backup' ), $file['path'] ) );
 					}
 					$hash = hash_init( 'sha256' );
 					if ( $file['size'] !== hash_update_stream( $hash, $stream ) ) {
-						throw new RuntimeException( '无法计算完整文件校验：' . $file['path'] );
+						/* translators: Relative file or directory path. */
+						throw new RuntimeException( sprintf( __( '无法计算完整文件校验：%s', 'wp-panel-backup' ), $file['path'] ) );
 					}
 					$check = open_source_file( $source_path, $file );
 					fclose( $check );
@@ -281,22 +291,22 @@ function publish_staged_zip( $directory, $name, $ordinal, $members ) {
 	$path = $directory . '/building.zip';
 	$zip = new ZipArchive();
 	if ( true !== $zip->open( $path, ZipArchive::CREATE | ZipArchive::OVERWRITE ) ) {
-		throw new RuntimeException( storage_error( '无法创建 ZIP 分包。', $directory ) );
+		throw new RuntimeException( storage_error( __( '无法创建 ZIP 分包。', 'wp-panel-backup' ), $directory ) );
 	}
 	for ( $member = 1; $member <= $members; ++$member ) {
 		$chunk = staged_chunk_path( $directory, $ordinal, $member );
 		if ( ! is_file( $chunk ) || ! @$zip->addFile( $chunk, sprintf( 'data/%05d', $member ) ) ) {
 			$zip->unchangeAll();
 			@$zip->close();
-			throw new RuntimeException( '备份文件块缺失或无法加入 ZIP 分包。' );
+			throw new RuntimeException( __( '备份文件块缺失或无法加入 ZIP 分包。', 'wp-panel-backup' ) );
 		}
 	}
 	if ( ! @$zip->close() ) {
-		throw new RuntimeException( storage_error( '无法完成 ZIP 分包写入。', $directory ) );
+		throw new RuntimeException( storage_error( __( '无法完成 ZIP 分包写入。', 'wp-panel-backup' ), $directory ) );
 	}
 	$package = artifact_metadata( $path, $name );
 	if ( ! @rename( $path, $directory . '/' . $name ) ) {
-		throw new RuntimeException( storage_error( '无法保存 ZIP 分包。', $directory ) );
+		throw new RuntimeException( storage_error( __( '无法保存 ZIP 分包。', 'wp-panel-backup' ), $directory ) );
 	}
 	return $package;
 }
@@ -306,7 +316,8 @@ function artifact_metadata( $path, $name ) {
 	$size = filesize( $path );
 	$hash = hash_file( 'sha256', $path );
 	if ( false === $size || false === $hash ) {
-		throw new RuntimeException( '无法校验备份材料：' . $name );
+		/* translators: Name of the backup file. */
+		throw new RuntimeException( sprintf( __( '无法校验备份材料：%s', 'wp-panel-backup' ), $name ) );
 	}
 	return array( 'name' => $name, 'size' => $size, 'sha256' => $hash );
 }
@@ -357,7 +368,7 @@ function list_exports( $root ) {
 		}
 		$job = read_record( $entry->getPathname() . '/job.json' );
 		if ( $entry->getFilename() !== $job['id'] ) {
-			throw new RuntimeException( '备份目录与任务编号不一致。' );
+			throw new RuntimeException( __( '备份目录与任务编号不一致。', 'wp-panel-backup' ) );
 		}
 		$jobs[] = $job;
 	}
@@ -382,11 +393,13 @@ function delete_export( $root, $id ) {
 			continue;
 		}
 		if ( ( ! $entry->isLink() && ! $entry->isFile() ) || ! unlink( $entry->getPathname() ) ) {
-			throw new RuntimeException( '无法清除备份材料：' . $id );
+			/* translators: Backup job ID. */
+			throw new RuntimeException( sprintf( __( '无法清除备份材料：%s', 'wp-panel-backup' ), $id ) );
 		}
 	}
 	if ( ! unlink( $directory . '/job.json' ) || ! rmdir( $directory ) ) {
-		throw new RuntimeException( '无法清除备份任务：' . $id );
+		/* translators: Backup job ID. */
+		throw new RuntimeException( sprintf( __( '无法清除备份任务：%s', 'wp-panel-backup' ), $id ) );
 	}
 }
 

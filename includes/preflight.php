@@ -2,6 +2,8 @@
 
 namespace WPPanelBackup;
 
+// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exceptions are plain text. Escape at HTML output so JSON responses and saved job status retain the original text.
+
 use DirectoryIterator;
 use RuntimeException;
 
@@ -16,13 +18,13 @@ function inspect_source() {
 	global $wpdb;
 
 	if ( is_multisite() ) {
-		throw new RuntimeException( '当前是 WordPress 多站点，暂不支持自动备份。' );
+		throw new RuntimeException( __( '当前是 WordPress 多站点，暂不支持自动备份。', 'wp-panel-backup' ) );
 	}
 
 	$home    = source_address( get_option( 'home' ) );
 	$siteurl = source_address( get_option( 'siteurl' ) );
 	if ( $home !== $siteurl ) {
-		throw new RuntimeException( '站点地址与 WordPress 地址不同，请使用手动迁移。' );
+		throw new RuntimeException( __( '站点地址与 WordPress 地址不同，请使用手动迁移。', 'wp-panel-backup' ) );
 	}
 
 	// Read stored values directly. get_option() can return constants via core filters.
@@ -30,7 +32,7 @@ function inspect_source() {
 	$stored = database_rows( "SELECT option_name, option_value FROM `{$options}` WHERE option_name IN ('home', 'siteurl')" );
 	$addresses = array_column( $stored, 'option_value', 'option_name' );
 	if ( $home !== source_address( $addresses['home'] ?? '' ) || $siteurl !== source_address( $addresses['siteurl'] ?? '' ) ) {
-		throw new RuntimeException( '实际生效的站点地址与数据库记录不同，请使用手动迁移。' );
+		throw new RuntimeException( __( '实际生效的站点地址与数据库记录不同，请使用手动迁移。', 'wp-panel-backup' ) );
 	}
 
 	$root = source_root();
@@ -58,7 +60,7 @@ function source_address( $address ) {
 		|| ( $parts['port'] ?? $port ) !== $port
 		|| ! in_array( $parts['path'] ?? '', array( '', '/' ), true )
 		|| isset( $parts['user'] ) || isset( $parts['pass'] ) || isset( $parts['query'] ) || isset( $parts['fragment'] ) ) {
-		throw new RuntimeException( '站点地址必须使用域名根路径和标准 HTTP/HTTPS 端口，且不能使用国际化域名。' );
+		throw new RuntimeException( __( '站点地址必须使用域名根路径和标准 HTTP/HTTPS 端口，且不能使用国际化域名。', 'wp-panel-backup' ) );
 	}
 
 	return $scheme . '://' . $host;
@@ -67,13 +69,13 @@ function source_address( $address ) {
 function source_root() {
 	$root = realpath( ABSPATH );
 	if ( false === $root || ! is_readable( $root ) || ! is_file( $root . '/wp-load.php' ) ) {
-		throw new RuntimeException( '无法读取 WordPress 安装根目录。' );
+		throw new RuntimeException( __( '无法读取 WordPress 安装根目录。', 'wp-panel-backup' ) );
 	}
 
 	if ( 'cli' !== PHP_SAPI ) {
 		$document_root = realpath( $_SERVER['DOCUMENT_ROOT'] ?? '' );
 		if ( $document_root !== $root ) {
-			throw new RuntimeException( 'WordPress 安装根目录与服务器网站根目录不同，请使用手动迁移。' );
+			throw new RuntimeException( __( 'WordPress 安装根目录与服务器网站根目录不同，请使用手动迁移。', 'wp-panel-backup' ) );
 		}
 	}
 
@@ -87,7 +89,8 @@ function source_root() {
 		}
 		$resolved = realpath( $path );
 		if ( false === $resolved || ( $resolved !== $root && 0 !== strpos( $resolved, $root . DIRECTORY_SEPARATOR ) ) ) {
-			throw new RuntimeException( '发现网站根目录之外或无法读取的内容目录：' . $location );
+			/* translators: Relative file or directory path. */
+			throw new RuntimeException( sprintf( __( '发现网站根目录之外或无法读取的内容目录：%s', 'wp-panel-backup' ), $location ) );
 		}
 	}
 
@@ -100,7 +103,8 @@ function source_root() {
 function source_entries( $root, $excluded, $relative = '' ) {
 	$directory = rtrim( $root . '/' . $relative, '/' );
 	if ( realpath( $directory ) !== $directory ) {
-		throw new RuntimeException( '扫描目录已消失或变成链接：' . $relative );
+		/* translators: Relative file or directory path. */
+		throw new RuntimeException( sprintf( __( '扫描目录已消失或变成链接：%s', 'wp-panel-backup' ), $relative ) );
 	}
 	foreach ( new DirectoryIterator( $directory ) as $entry ) {
 		if ( $entry->isDot() ) {
@@ -115,7 +119,8 @@ function source_entries( $root, $excluded, $relative = '' ) {
 
 		$stat = lstat( $entry->getPathname() );
 		if ( false === $stat ) {
-			throw new RuntimeException( '无法读取文件信息：' . $path );
+			/* translators: Relative file or directory path. */
+			throw new RuntimeException( sprintf( __( '无法读取文件信息：%s', 'wp-panel-backup' ), $path ) );
 		}
 
 		$type = $stat['mode'] & 0170000;
@@ -124,10 +129,12 @@ function source_entries( $root, $excluded, $relative = '' ) {
 			continue;
 		}
 		if ( 0040000 !== $type && ( 0100000 !== $type || 1 !== $stat['nlink'] ) ) {
-			throw new RuntimeException( '备份范围内存在软链接、硬链接或特殊文件：' . $path );
+			/* translators: Relative file or directory path. */
+			throw new RuntimeException( sprintf( __( '备份范围内存在软链接、硬链接或特殊文件：%s', 'wp-panel-backup' ), $path ) );
 		}
 		if ( ! $entry->isReadable() ) {
-			throw new RuntimeException( '无法读取备份路径：' . $path );
+			/* translators: Relative file or directory path. */
+			throw new RuntimeException( sprintf( __( '无法读取备份路径：%s', 'wp-panel-backup' ), $path ) );
 		}
 
 		$is_directory = 0040000 === $type;
@@ -152,9 +159,11 @@ function database_rows( $sql ) {
 
 	$previous = $wpdb->suppress_errors();
 	try {
+		// Calls supply fixed metadata queries and identifiers quoted by sql_name().
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$rows = $wpdb->get_results( $sql, ARRAY_A );
 		if ( '' !== $wpdb->last_error || ! is_array( $rows ) ) {
-			throw new RuntimeException( '无法读取数据库选项或对象清单，请检查当前数据库账号的读取权限。' );
+			throw new RuntimeException( __( '无法读取数据库选项或对象清单，请检查当前数据库账号的读取权限。', 'wp-panel-backup' ) );
 		}
 		return $rows;
 	} finally {
@@ -167,20 +176,22 @@ function inspect_database() {
 	foreach ( database_rows( 'SHOW FULL TABLES' ) as $row ) {
 		list( $name, $type ) = array_values( $row );
 		if ( 'BASE TABLE' !== $type ) {
-			throw new RuntimeException( '发现不支持的数据库对象：' . $name . '（' . $type . '）' );
+			/* translators: 1: Database object name, 2: Database object type. */
+			throw new RuntimeException( sprintf( __( '发现不支持的数据库对象：%1$s（%2$s）', 'wp-panel-backup' ), $name, $type ) );
 		}
 		$tables[] = $name;
 	}
 
 	$queries = array(
-		'触发器'   => 'SHOW TRIGGERS',
-		'计划事件' => 'SHOW EVENTS',
-		'存储过程' => 'SHOW PROCEDURE STATUS WHERE Db = DATABASE()',
-		'存储函数' => 'SHOW FUNCTION STATUS WHERE Db = DATABASE()',
+		'SHOW TRIGGERS' => __( '触发器', 'wp-panel-backup' ),
+		'SHOW EVENTS' => __( '计划事件', 'wp-panel-backup' ),
+		'SHOW PROCEDURE STATUS WHERE Db = DATABASE()' => __( '存储过程', 'wp-panel-backup' ),
+		'SHOW FUNCTION STATUS WHERE Db = DATABASE()' => __( '存储函数', 'wp-panel-backup' ),
 	);
-	foreach ( $queries as $type => $query ) {
+	foreach ( $queries as $query => $type ) {
 		if ( database_rows( $query ) ) {
-			throw new RuntimeException( '当前数据库存在首版不支持的对象：' . $type . '。' );
+			/* translators: Database object type. */
+			throw new RuntimeException( sprintf( __( '当前数据库存在首版不支持的对象：%s。', 'wp-panel-backup' ), $type ) );
 		}
 	}
 

@@ -2,6 +2,8 @@
 
 namespace WPPanelBackup;
 
+// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exceptions are plain text. Escape at HTML output so JSON responses and saved job status retain the original text.
+
 use RuntimeException;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -25,7 +27,7 @@ function release_maintenance( $workspace, $mode, $job_id = '' ) {
 		return;
 	}
 	if ( ! unlink( $workspace . '/maintenance.json' ) ) {
-		throw new RuntimeException( '无法解除本插件的维护状态。' );
+		throw new RuntimeException( __( '无法解除本插件的维护状态。', 'wp-panel-backup' ) );
 	}
 }
 
@@ -47,8 +49,8 @@ function show_maintenance_notice() {
 		header( 'Retry-After: 300' );
 	}
 	wp_die(
-		'本站正在维护，请稍后再访问。 <a href="' . esc_url( wp_login_url() ) . '">管理员登录</a>',
-		'网站维护中',
+		esc_html__( '本站正在维护，请稍后再访问。', 'wp-panel-backup' ) . ' <a href="' . esc_url( wp_login_url() ) . '">' . esc_html__( '管理员登录', 'wp-panel-backup' ) . '</a>',
+		esc_html__( '网站维护中', 'wp-panel-backup' ),
 		array( 'response' => 503 )
 	);
 }
@@ -78,7 +80,7 @@ function maintenance_admin_access() {
 
 function maintenance_rest_access( $error ) {
 	if ( active_maintenance() ) {
-		return new \WP_Error( 'wp_panel_backup_maintenance', '本站正在维护，请稍后再访问。', array( 'status' => 503 ) );
+		return new \WP_Error( 'wp_panel_backup_maintenance', __( '本站正在维护，请稍后再访问。', 'wp-panel-backup' ), array( 'status' => 503 ) );
 	}
 	return $error;
 }

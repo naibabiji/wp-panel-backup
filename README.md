@@ -2,7 +2,7 @@
 
 独立 WordPress 源站备份插件，供管理员将常规网站备份为可下载材料，后续由 WP Panel 从备份创建同域名网站。
 
-**当前状态：开发源码已在隔离 WordPress 验证全目录与全库备份、三种模式、下载和清理。** 源码及文档保存在本地 Git，当前开发测试包为 `dist/wp-panel-backup-0.0.0-dev-panel-style.zip`。正式版本及发布方式待后续确认。
+**当前状态：开发源码已在隔离 WordPress 验证全目录与全库备份、三种模式、下载和清理。** 当前开发测试包为 `dist/wp-panel-backup-0.0.0-dev-review.zip`。公开版的许可证、发布元数据及直读保护方案待确认。
 
 开发顺序：
 
@@ -27,7 +27,7 @@
 
 ## 开发测试站使用
 
-在 WordPress 后台进入「插件 → 安装插件 → 上传插件」，上传 `wp-panel-backup-0.0.0-dev-panel-style.zip` 并启用。安装包包含 `wp-panel-backup.php`、`includes/*.php`、`assets/advance.js` 和 `assets/admin.css`。
+在 WordPress 后台进入「插件 → 安装插件 → 上传插件」，上传 `wp-panel-backup-0.0.0-dev-review.zip` 并启用。安装包包含插件运行文件和公开说明初稿。
 
 首次开始备份时，插件自动在 `wp-content` 下建立带随机后缀的工作目录，并生成 `.htaccess` 和防止列目录的 `index.html`。创建成功便可备份，主机无需支持回环请求。写入失败会提示检查剩余空间、主机账号配额和目录权限。
 
