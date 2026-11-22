@@ -3,8 +3,8 @@
 - 日期：2026-11-22。
 - 项目：WP PANEL Backup，源站独立备份插件；主文件为 wp-panel-backup.php。
 - 当前阶段：本地 WordPress 已验证正常备份准确性、维护、局部更新、下载和材料清理。正式格式冻结及面板恢复待后续。
-- 最新用户要求：备份执行时局部更新进度，统一后台样式，并将插件列表快捷入口改成「备份」。
-- 用户已授权本地提交与打包。当前开发测试包为 `dist/wp-panel-backup-0.0.0-dev-ajax-ui.zip`。正式发布、部署和面板实现待另行安排。
+- 最新用户要求：参照本地 WP Panel 项目和官网主题调整备份后台样式，并在页头说明面板恢复用途、链接官网。
+- 用户已授权本地提交与打包。当前开发测试包为 `dist/wp-panel-backup-0.0.0-dev-panel-style.zip`。正式发布、部署和面板实现待另行安排。
 - 插件方向已确认，首版导出与私有工作区、维护和保留方案已由用户确认，详见 requirements；正式兼容矩阵及格式冻结仍见 pending-decisions。
 - 面板恢复没有实现，不能声称插件包已可在 WP Panel 导入；只有两端真实验收后才能这样宣传。
 - 当前活动卡：[插件开发](docs/work/active/2026-11-22-plugin-development.md)。[初始化交接](docs/work/active/2026-11-22-plugin-bootstrap.md)保留历史决策。

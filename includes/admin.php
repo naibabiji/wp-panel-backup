@@ -33,12 +33,13 @@ function render_backup_page() {
 	?>
 	<div class="wrap wp-panel-backup">
 		<header class="wppb-header">
-			<span class="dashicons dashicons-database-export" aria-hidden="true"></span>
 			<h1>WP PANEL Backup</h1>
+			<p>导出 WordPress 站点文件和数据库，用于在 WP PANEL 中恢复网站。面板端的一键导入功能仍在开发中。</p>
+			<a href="https://wp-panel.org/" target="_blank" rel="noopener noreferrer">WP PANEL 官网（wp-panel.org）<span class="screen-reader-text">（在新标签页打开）</span></a>
 		</header>
 		<nav class="wppb-tabs" aria-label="备份管理">
-			<a href="<?php echo esc_url( backup_page_url() ); ?>" class="nav-tab<?php if ( ! $list ) : ?> nav-tab-active<?php endif; ?>" <?php if ( ! $list ) : ?>aria-current="page"<?php endif; ?>>创建备份</a>
-			<a href="<?php echo esc_url( backup_page_url( true ) ); ?>" class="nav-tab<?php if ( $list ) : ?> nav-tab-active<?php endif; ?>" <?php if ( $list ) : ?>aria-current="page"<?php endif; ?>>备份列表</a>
+			<a href="<?php echo esc_url( backup_page_url() ); ?>" <?php if ( ! $list ) : ?>aria-current="page"<?php endif; ?>>创建备份</a>
+			<a href="<?php echo esc_url( backup_page_url( true ) ); ?>" <?php if ( $list ) : ?>aria-current="page"<?php endif; ?>>备份列表</a>
 		</nav>
 		<?php render_export_controls( $list ); ?>
 	</div>
@@ -253,7 +254,6 @@ function render_export_controls( $list ) {
 	} );
 	?>
 	<form class="wppb-card wppb-create" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-		<h2>创建备份</h2>
 		<p class="wppb-meta">开始后会自动检查站点、文件、数据库和工作目录。扫描时跳过隐藏文件和目录。</p>
 		<?php wp_nonce_field( 'wp-panel-backup-control', '_wp_panel_backup_control_nonce' ); ?>
 		<input type="hidden" name="action" value="wp_panel_backup_control">
@@ -336,7 +336,7 @@ function render_active_export( $job, $modes ) {
 	<section class="wppb-card wppb-progress" id="wp-panel-backup-progress" data-phase="<?php echo esc_attr( $progress['phase'] ); ?>">
 		<div class="wppb-progress-heading">
 			<h2>备份进度</h2>
-			<span class="wppb-pill"><?php echo esc_html( $modes[ $job['mode'] ?? 'normal' ] ); ?></span>
+			<span class="wppb-meta"><?php echo esc_html( $modes[ $job['mode'] ?? 'normal' ] ); ?></span>
 		</div>
 		<div class="wppb-progress-status" role="status" aria-atomic="true">
 			<p class="wppb-phase"><span data-progress="label"><?php echo esc_html( $progress['label'] ); ?></span></p>
@@ -392,30 +392,36 @@ function render_completed_exports( $jobs, $modes ) {
 	if ( ! $available ) {
 		?>
 		<section class="wppb-card wppb-empty">
-			<span class="dashicons dashicons-archive" aria-hidden="true"></span>
 			<h2>暂无可下载的备份</h2>
 			<a class="button button-primary" href="<?php echo esc_url( backup_page_url() ); ?>">创建备份</a>
 		</section>
 		<?php
 	} else {
-		render_download_notice();
-		foreach ( $available as $job ) {
+		?>
+		<div class="wppb-list">
+			<div class="wppb-list-heading" aria-hidden="true">
+				<span>完成时间</span><span>备份方式</span><span>分包 / 大小</span>
+			</div>
+			<?php foreach ( $available as $job ) :
 			$date = wp_date( 'Y-m-d H:i', $job['completed_at'] );
 			$bytes = array_sum( array_column( $job['packages'], 'size' ) );
 			$open = count( $available ) === 1 || ( $_GET['job'] ?? '' ) === $job['id'];
 			?>
-			<details class="wppb-card wppb-backup" <?php if ( $open ) : ?>open<?php endif; ?>>
+			<details class="wppb-backup" <?php if ( $open ) : ?>open<?php endif; ?>>
 				<summary>
-					<span><strong><?php echo esc_html( $date ); ?></strong><small><?php echo esc_html( sprintf( '%s · %d 个 ZIP 包 · %s', $modes[ $job['mode'] ?? 'normal' ], count( $job['packages'] ), size_format( $bytes, 1 ) ) ); ?></small></span>
-					<span class="wppb-pill wppb-ready">已完成</span>
+					<time datetime="<?php echo esc_attr( wp_date( DATE_ATOM, $job['completed_at'] ) ); ?>"><?php echo esc_html( $date ); ?></time>
+					<span><?php echo esc_html( $modes[ $job['mode'] ?? 'normal' ] ); ?></span>
+					<span><?php echo esc_html( sprintf( '%d 个 ZIP · %s', count( $job['packages'] ), size_format( $bytes, 1 ) ) ); ?></span>
 				</summary>
 				<div class="wppb-backup-content">
 					<?php render_export_downloads( $job ); ?>
 					<div class="wppb-section"><?php render_control_button( 'delete', '删除这套备份材料', $job['id'], true ); ?></div>
 				</div>
 			</details>
-			<?php
-		}
+			<?php endforeach; ?>
+		</div>
+		<?php
+		render_download_notice();
 	}
 	if ( $expired ) {
 		render_control_button( 'cleanup', '清理已过期材料', '', true );
