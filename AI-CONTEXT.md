@@ -2,7 +2,7 @@
 
 - 日期：2026-11-23。
 - 项目：WP PANEL Backup，源站独立备份插件；主文件为 wp-panel-backup.php。
-- 当前阶段：本地 WordPress 已验证正常备份准确性、维护、局部更新、下载和材料清理。当前候选包为 `dist/wp-panel-backup-1.0.0-rc6.zip`，来自提交 `eb40eb0`，在阶段标题下固定一行显示已导出 SQL 和已处理站点文件大小。此次验证和历史兼容性记录见 [验收文档](docs/acceptance.md)。
+- 当前阶段：本地 WordPress 已验证正常备份准确性、维护、局部更新、下载和材料清理。当前候选包为 `dist/wp-panel-backup-1.0.0-rc7.zip`，来自提交 `9fa65fa`，修复 PHP-FPM 输出缓冲下大文件下载的内存问题。此次验证和历史兼容性记录见 [验收文档](docs/acceptance.md)。
 - 用户确认首版 1.0.0、GPL-2.0-or-later、作者 WP PANEL、贡献者 naibabiji，并将源站最低版本调整为 WordPress 6.5 / PHP 7.0。当前源码在源站 PHP 主、次版本与面板 PHP 8.3 不同时提示恢复兼容风险。WordPress.org 尚未提交，部署及面板恢复另行处理。
 - 首版导出、站内随机工作目录、维护和保留方案已确认，详见 requirements。更广的兼容矩阵及交换格式冻结仍见 pending-decisions。
 - 面板恢复没有实现，不能声称插件包已可在 WP Panel 导入；只有两端真实验收后才能这样宣传。
