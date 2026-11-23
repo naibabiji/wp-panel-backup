@@ -23,6 +23,13 @@ function download_export() {
 	$id = sanitize_key( wp_unslash( $_POST['job'] ?? '' ) );
 	check_admin_referer( 'wp-panel-backup-download-' . $id, '_wp_panel_backup_download_nonce' );
 
+	// Admin callbacks can open an unbounded buffer that retains every download chunk.
+	while ( ob_get_level() > 0 ) {
+		if ( ! @ob_end_clean() ) {
+			wp_die( esc_html__( '无法关闭下载请求的 PHP 输出缓冲，请检查站点后台的缓冲设置。', 'wp-panel-backup' ), '', array( 'response' => 500 ) );
+		}
+	}
+
 	// Preserve the requested name for an exact match against the backup's artifact allowlist.
 	$name = wp_unslash( $_POST['artifact'] ?? '' ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 	$bundle = BUNDLE_ARTIFACT === $name;
