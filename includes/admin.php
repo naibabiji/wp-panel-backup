@@ -18,10 +18,8 @@ function enqueue_backup_assets( $hook ) {
 	}
 	$plugin = dirname( __DIR__ ) . '/wp-panel-backup.php';
 	wp_enqueue_style( 'wp-panel-backup-admin', plugins_url( 'assets/admin.css', $plugin ), array(), (string) filemtime( dirname( $plugin ) . '/assets/admin.css' ) );
-	if ( ! backup_list_view() ) {
-		wp_enqueue_script( 'wp-panel-backup-advance', plugins_url( 'assets/advance.js', $plugin ), array( 'wp-i18n' ), (string) filemtime( dirname( $plugin ) . '/assets/advance.js' ), true );
-		wp_set_script_translations( 'wp-panel-backup-advance', 'wp-panel-backup' );
-	}
+	wp_enqueue_script( 'wp-panel-backup-advance', plugins_url( 'assets/advance.js', $plugin ), array( 'wp-i18n' ), (string) filemtime( dirname( $plugin ) . '/assets/advance.js' ), true );
+	wp_set_script_translations( 'wp-panel-backup-advance', 'wp-panel-backup' );
 }
 
 function backup_plugin_action_links( $links ) {
@@ -494,6 +492,16 @@ function render_export_downloads( $job ) {
 	?>
 	<p class="wppb-meta"><?php /* translators: Backup expiration date. */ echo esc_html( sprintf( __( '到期时间 %s。刷新此页可查看已发起的下载。', 'wp-panel-backup' ), $expiry ) ); ?></p>
 	<?php render_artifact_download( $job, BUNDLE_ARTIFACT, __( '下载整套（TAR）', 'wp-panel-backup' ), 'primary' ); ?>
+	<form data-wppb-remote-link action="<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>" method="post">
+		<input type="hidden" name="action" value="wp_panel_backup_remote_link">
+		<input type="hidden" name="job" value="<?php echo esc_attr( $job['id'] ); ?>">
+		<?php wp_nonce_field( 'wp-panel-backup-remote-link-' . $job['id'], '_wp_panel_backup_remote_nonce' ); ?>
+		<button class="button" type="submit" name="operation" value="generate"><?php esc_html_e( '生成恢复链接', 'wp-panel-backup' ); ?></button>
+		<button class="button" type="submit" name="operation" value="revoke"><?php esc_html_e( '撤销恢复链接', 'wp-panel-backup' ); ?></button>
+		<p class="wppb-meta"><?php esc_html_e( '链接仅可读取这份备份，最长有效 12 小时。生成新链接会替换之前的链接。', 'wp-panel-backup' ); ?></p>
+		<input type="text" class="large-text" data-wppb-link readonly hidden aria-label="<?php esc_attr_e( '恢复链接', 'wp-panel-backup' ); ?>">
+		<p data-wppb-message role="status"></p>
+	</form>
 	<details class="wppb-fold wppb-downloads">
 		<summary><?php /* translators: Number of separately downloadable backup files. */ echo esc_html( sprintf( __( '逐份下载（%d 份）', 'wp-panel-backup' ), count( $names ) ) ); ?></summary>
 		<ul>

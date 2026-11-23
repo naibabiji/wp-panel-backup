@@ -35,6 +35,9 @@ if ( is_admin() ) {
 	add_action( 'wp_ajax_wp_panel_backup_advance', __NAMESPACE__ . '\\advance_export_ajax' );
 	add_action( 'admin_init', __NAMESPACE__ . '\\maintenance_admin_access', 1 );
 	add_action( 'admin_post_wp_panel_backup_download', __NAMESPACE__ . '\\download_export' );
+	add_action( 'admin_post_wp_panel_backup_remote', __NAMESPACE__ . '\\remote_download_export' );
+	add_action( 'admin_post_nopriv_wp_panel_backup_remote', __NAMESPACE__ . '\\remote_download_export' );
+	add_action( 'wp_ajax_wp_panel_backup_remote_link', __NAMESPACE__ . '\\manage_remote_link_ajax' );
 	add_action( 'admin_menu', __NAMESPACE__ . '\\register_backup_page' );
 	add_action( 'admin_enqueue_scripts', __NAMESPACE__ . '\\enqueue_backup_assets' );
 	add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), __NAMESPACE__ . '\\backup_plugin_action_links' );

@@ -217,7 +217,10 @@ function pack_export_step( $directory, &$job ) {
 		for ( $processed = 0; ! $finished && $processed < 256 && $request_bytes < PACK_REQUEST_BYTES && $bytes < $payload_limit && $members < ZIP_MAX_MEMBERS; ++$processed ) {
 			if ( null === $job['file'] ) {
 				if ( ! $job['sql_packed'] ) {
-					$stat = stat( $directory . '/database.sql' );
+					$stat = @stat( $directory . '/database.sql' );
+					if ( false === $stat ) {
+						throw new RuntimeException( __( '无法读取数据库暂存文件 database.sql，请重新创建备份。', 'wp-panel-backup' ) );
+					}
 					$entry = array( 'kind' => 'sql', 'path' => 'database.sql', 'size' => $stat['size'], 'mtime' => $stat['mtime'], 'ctime' => $stat['ctime'] );
 				} else {
 					$entry = read_queue_entry( $queue, $job );

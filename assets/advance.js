@@ -132,3 +132,33 @@
 		run();
 	}
 })();
+
+
+document.querySelectorAll('[data-wppb-remote-link]').forEach(form => {
+	const { __ } = wp.i18n;
+	const link = form.querySelector('[data-wppb-link]');
+	const message = form.querySelector('[data-wppb-message]');
+	form.addEventListener('submit', async event => {
+		event.preventDefault();
+		const operation = event.submitter?.value || 'generate';
+		const body = new FormData(form);
+		body.set('operation', operation);
+		const buttons = [...form.querySelectorAll('button')];
+		buttons.forEach(button => { button.disabled = true; });
+		try {
+			const response = await fetch(form.action, {method: 'POST', credentials: 'same-origin', body, cache: 'no-store'});
+			const result = await response.json();
+			if (!result.success) throw new Error(result.data?.message);
+			link.value = result.data.link;
+			link.hidden = !link.value;
+			message.textContent = link.value
+				? __('链接到期时间：', 'wp-panel-backup') + result.data.expires
+				: __('恢复链接已撤销。', 'wp-panel-backup');
+			if (link.value) link.select();
+		} catch (error) {
+			message.textContent = error.message || __('恢复链接操作失败。', 'wp-panel-backup');
+		} finally {
+			buttons.forEach(button => { button.disabled = false; });
+		}
+	});
+});

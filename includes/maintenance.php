@@ -61,6 +61,12 @@ function maintenance_admin_access() {
 	if ( ! active_maintenance() ) {
 		return;
 	}
+	// This route serves one backup artifact only after validating a scoped token.
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- This branch only routes the request.
+	if ( 'admin-post.php' === $pagenow && 'GET' === ( $_SERVER['REQUEST_METHOD'] ?? '' )
+		&& 'wp_panel_backup_remote' === ( $_GET['action'] ?? '' ) ) {
+		return;
+	}
 	if ( current_user_can( 'manage_options' ) ) {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only page selection during maintenance.
 		if ( 'tools.php' === $pagenow && 'wp-panel-backup' === sanitize_key( wp_unslash( $_GET['page'] ?? '' ) ) ) {
@@ -71,7 +77,7 @@ function maintenance_admin_access() {
 			// phpcs:ignore WordPress.Security.NonceVerification.Missing -- This only routes the request. The handlers verify the nonce before doing any work.
 			$action = sanitize_key( wp_unslash( $_POST['action'] ?? '' ) );
 			if ( ( 'admin-post.php' === $pagenow && in_array( $action, array( 'wp_panel_backup_control', 'wp_panel_backup_download' ), true ) )
-				|| ( wp_doing_ajax() && 'wp_panel_backup_advance' === $action ) ) {
+				|| ( wp_doing_ajax() && in_array( $action, array( 'wp_panel_backup_advance', 'wp_panel_backup_remote_link' ), true ) ) ) {
 				return;
 			}
 		}
