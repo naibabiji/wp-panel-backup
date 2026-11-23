@@ -160,8 +160,8 @@ function database_rows( $sql ) {
 
 	$previous = $wpdb->suppress_errors();
 	try {
-		// Calls supply fixed metadata queries and identifiers quoted by sql_name().
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+		// Calls supply fixed metadata queries and quoted identifiers. Read live metadata to detect schema changes and permission failures.
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 		$rows = $wpdb->get_results( $sql, ARRAY_A );
 		if ( '' !== $wpdb->last_error || ! is_array( $rows ) ) {
 			throw new RuntimeException( __( '无法读取数据库选项或对象清单，请检查当前数据库账号的读取权限。', 'wp-panel-backup' ) );

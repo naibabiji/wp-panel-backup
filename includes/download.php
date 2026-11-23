@@ -102,7 +102,7 @@ function stream_backup_download( $items, $filename, $bundle ) {
 function manage_remote_link_ajax() {
 	header( 'Cache-Control: private, no-store, max-age=0' );
 	$id = sanitize_key( wp_unslash( $_POST['job'] ?? '' ) );
-	if ( ! current_user_can( 'manage_options' ) || 'POST' !== ( $_SERVER['REQUEST_METHOD'] ?? '' )
+	if ( ! current_user_can( 'manage_options' ) || 'POST' !== sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ?? '' ) )
 		|| ! check_ajax_referer( 'wp-panel-backup-remote-link-' . $id, '_wp_panel_backup_remote_nonce', false ) ) {
 		wp_send_json_error( array( 'message' => __( '无法验证恢复链接请求。', 'wp-panel-backup' ) ), 403 );
 	}
@@ -147,15 +147,16 @@ function active_remote_link_expiry( $job ) {
 }
 
 function remote_download_export() {
-	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Download authorization uses the separate short-lived secret below.
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Strict format checks and the short-lived token authorize this request below.
 	$id = wp_unslash( $_GET['job'] ?? '' );
-	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Download authorization uses the separate short-lived secret below.
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Only names in the exact artifact allowlist below are accepted.
 	$name = wp_unslash( $_GET['artifact'] ?? '' );
+	// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Only a 64-digit hexadecimal token is accepted below.
 	$token = wp_unslash( $_SERVER['HTTP_X_WP_PANEL_BACKUP_TOKEN'] ?? '' );
 	nocache_headers();
 	header( 'Cache-Control: private, no-store, max-age=0' );
 	header( 'Referrer-Policy: no-referrer' );
-	if ( 'GET' !== ( $_SERVER['REQUEST_METHOD'] ?? '' )
+	if ( 'GET' !== sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ?? '' ) )
 		|| ! is_string( $id ) || ! preg_match( '/^[a-f0-9]{32}$/D', $id )
 		|| ! is_string( $token ) || ! preg_match( '/^[a-f0-9]{64}$/D', $token )
 		|| ! is_string( $name ) || ! preg_match( '/^(manifest\.json|files\.ndjson|part-[0-9]{5,}\.zip)$/D', $name ) ) {

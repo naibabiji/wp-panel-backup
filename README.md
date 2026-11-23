@@ -2,7 +2,7 @@
 
 独立 WordPress 源站备份插件，供管理员将常规网站备份为可下载材料，后续由 WP Panel 从备份创建同域名网站。
 
-**当前候选包：`dist/wp-panel-backup-1.0.0-rc16.zip`（支持 HTTP 与 HTTPS 恢复链接）。** WordPress.org 尚未提交。
+**当前候选包：`dist/wp-panel-backup-1.0.0-rc17.zip`（支持 HTTP 与 HTTPS 恢复链接）。** WordPress.org 尚未提交。
 
 当前源码面向最低 WordPress 6.5、PHP 7.0。源站的 WordPress 版本还须支持其实际 PHP 版本，并满足 64 位 PHP、ZIP、原生 mysqli、InnoDB 和既有预检要求。许可证为 GPL-2.0-or-later。公开说明见 [readme.txt](readme.txt)。v1 格式已确认随首发冻结。上传恢复和 HTTPS 链接恢复已通过真实站点验收。RC16 已通过隔离 HTTP 站点测试，实际 HTTP 源站到局域网的完整拉取待用户测试。
 
@@ -22,7 +22,7 @@
 
 ## 开发测试站使用
 
-在 WordPress 后台进入「插件 → 安装插件 → 上传插件」，上传 `wp-panel-backup-1.0.0-rc16.zip` 并启用。更新现有试装版时，按 WordPress 提示替换当前插件。安装包包含插件运行文件、公开说明和许可证。最低 WordPress 6.5、PHP 7.0。
+在 WordPress 后台进入「插件 → 安装插件 → 上传插件」，上传 `wp-panel-backup-1.0.0-rc17.zip` 并启用。更新现有试装版时，按 WordPress 提示替换当前插件。安装包包含插件运行文件、公开说明和许可证。最低 WordPress 6.5、PHP 7.0。
 
 当前源码的备份页在源站 PHP 主、次版本与 WP PANEL 的 PHP 8.3 不同时显示兼容提示。提示不影响备份。恢复后如网站无法打开，可查看目标站 PHP 错误日志，并自行修复或使用 WP PANEL 的 AI 开发功能辅助排查。
 

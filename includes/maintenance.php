@@ -61,10 +61,10 @@ function maintenance_admin_access() {
 	if ( ! active_maintenance() ) {
 		return;
 	}
+	$method = sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ?? '' ) );
 	// This route serves one backup artifact only after validating a scoped token.
-	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- This branch only routes the request.
-	if ( 'admin-post.php' === $pagenow && 'GET' === ( $_SERVER['REQUEST_METHOD'] ?? '' )
-		&& 'wp_panel_backup_remote' === ( $_GET['action'] ?? '' ) ) {
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Exact comparison only routes the request to the token-checked handler.
+	if ( 'admin-post.php' === $pagenow && 'GET' === $method && 'wp_panel_backup_remote' === wp_unslash( $_GET['action'] ?? '' ) ) {
 		return;
 	}
 	if ( current_user_can( 'manage_options' ) ) {
@@ -72,7 +72,6 @@ function maintenance_admin_access() {
 		if ( 'tools.php' === $pagenow && 'wp-panel-backup' === sanitize_key( wp_unslash( $_GET['page'] ?? '' ) ) ) {
 			return;
 		}
-		$method = sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ?? '' ) );
 		if ( 'POST' === $method ) {
 			// phpcs:ignore WordPress.Security.NonceVerification.Missing -- This only routes the request. The handlers verify the nonce before doing any work.
 			$action = sanitize_key( wp_unslash( $_POST['action'] ?? '' ) );

@@ -155,6 +155,7 @@ function file_zip_method( $stream, $path ) {
 		return 'd';
 	}
 
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread -- Inspect only the prefix of the existing verified file handle without reopening or reading the whole file.
 	$header = fread( $stream, 64 );
 	if ( false === $header ) {
 		return 'd';
