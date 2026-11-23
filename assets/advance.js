@@ -134,31 +134,56 @@
 })();
 
 
-document.querySelectorAll('[data-wppb-remote-link]').forEach(form => {
-	const { __ } = wp.i18n;
-	const link = form.querySelector('[data-wppb-link]');
-	const message = form.querySelector('[data-wppb-message]');
+document.querySelectorAll('[data-wppb-remote-link]').forEach(panel => {
+	const { __, sprintf } = wp.i18n;
+	const form = panel.querySelector('.wppb-link-actions');
+	const generate = form.querySelector('button[value="generate"]');
+	const revoke = form.querySelector('button[value="revoke"]');
+	const link = panel.querySelector('[data-wppb-link]');
+	const message = panel.querySelector('[data-wppb-message]');
+	let expiryTimer;
+
+	function showLink(value, remaining) {
+		window.clearTimeout(expiryTimer);
+		const active = remaining > 0;
+		generate.textContent = active ? generate.dataset.regenerate : generate.dataset.generate;
+		revoke.hidden = !active;
+		link.value = active ? value : '';
+		link.hidden = !link.value;
+		if (active) {
+			expiryTimer = window.setTimeout(() => {
+				const wasFocused = document.activeElement === revoke || document.activeElement === link;
+				showLink('', 0);
+				message.textContent = __('恢复链接已到期。', 'wp-panel-backup');
+				if (wasFocused) generate.focus();
+			}, remaining * 1000);
+		}
+	}
+
+	showLink('', Number(panel.dataset.wppbRemaining));
 	form.addEventListener('submit', async event => {
 		event.preventDefault();
 		const operation = event.submitter?.value || 'generate';
 		const body = new FormData(form);
 		body.set('operation', operation);
-		const buttons = [...form.querySelectorAll('button')];
-		buttons.forEach(button => { button.disabled = true; });
+		generate.disabled = revoke.disabled = true;
+		let focus;
 		try {
-			const response = await fetch(form.action, {method: 'POST', credentials: 'same-origin', body, cache: 'no-store'});
+			const response = await fetch(form.getAttribute('action'), {method: 'POST', credentials: 'same-origin', body, cache: 'no-store'});
 			const result = await response.json();
 			if (!result.success) throw new Error(result.data?.message);
-			link.value = result.data.link;
-			link.hidden = !link.value;
+			showLink(result.data.link, result.data.remaining);
 			message.textContent = link.value
-				? __('链接到期时间：', 'wp-panel-backup') + result.data.expires
-				: __('恢复链接已撤销。', 'wp-panel-backup');
-			if (link.value) link.select();
+				? sprintf(__('链接有效至 %s。重新生成会使旧链接失效。', 'wp-panel-backup'), result.data.expires)
+				: operation === 'revoke' ? __('恢复链接已撤销。', 'wp-panel-backup') : __('恢复链接已到期。', 'wp-panel-backup');
+			focus = link.value ? link : generate;
 		} catch (error) {
 			message.textContent = error.message || __('恢复链接操作失败。', 'wp-panel-backup');
+			focus = event.submitter;
 		} finally {
-			buttons.forEach(button => { button.disabled = false; });
+			generate.disabled = revoke.disabled = false;
+			if (focus && !focus.hidden) focus.focus();
+			if (focus === link) link.select();
 		}
 	});
 });

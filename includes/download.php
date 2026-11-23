@@ -123,20 +123,27 @@ function manage_remote_link_ajax() {
 				return array( 'link' => '' );
 			}
 			$endpoint = admin_url( 'admin-post.php' );
-			if ( 'https' !== wp_parse_url( $endpoint, PHP_URL_SCHEME ) ) {
-				throw new RuntimeException( __( '生成恢复链接需要源站使用 HTTPS。', 'wp-panel-backup' ) );
+			$scheme = wp_parse_url( $endpoint, PHP_URL_SCHEME );
+			if ( ! in_array( $scheme, array( 'https', 'http' ), true ) ) {
+				throw new RuntimeException( __( '恢复链接需要有效的 HTTP 或 HTTPS 站点地址。', 'wp-panel-backup' ) );
 			}
 			$token = bin2hex( random_bytes( 32 ) );
 			$expires = min( time() + 12 * HOUR_IN_SECONDS, $job['completed_at'] + 7 * DAY_IN_SECONDS );
-			$job['remote_link'] = array( 'digest' => hash( 'sha256', $token ), 'expires' => $expires );
+			$job['remote_link'] = array( 'digest' => hash( 'sha256', $token ), 'expires' => $expires, 'scheme' => $scheme );
 			write_record( $path, $job );
 			$url = add_query_arg( array( 'action' => 'wp_panel_backup_remote', 'job' => $id ), $endpoint );
-			return array( 'link' => $url . '#' . $token, 'expires' => wp_date( 'Y-m-d H:i T', $expires ) );
+			return array( 'link' => $url . '#' . $token, 'expires' => wp_date( 'Y-m-d H:i T', $expires ), 'remaining' => max( 0, $expires - time() ) );
 		} );
 	} catch ( \Throwable $error ) {
 		wp_send_json_error( array( 'message' => $error->getMessage() ), 400 );
 	}
 	wp_send_json_success( $result );
+}
+
+function active_remote_link_expiry( $job ) {
+	$link = $job['remote_link'] ?? array();
+	$expires = (int) ( $link['expires'] ?? 0 );
+	return ! empty( $link['digest'] ) && $expires > time() ? $expires : 0;
 }
 
 function remote_download_export() {
@@ -148,7 +155,7 @@ function remote_download_export() {
 	nocache_headers();
 	header( 'Cache-Control: private, no-store, max-age=0' );
 	header( 'Referrer-Policy: no-referrer' );
-	if ( ! is_ssl() || 'GET' !== ( $_SERVER['REQUEST_METHOD'] ?? '' )
+	if ( 'GET' !== ( $_SERVER['REQUEST_METHOD'] ?? '' )
 		|| ! is_string( $id ) || ! preg_match( '/^[a-f0-9]{32}$/D', $id )
 		|| ! is_string( $token ) || ! preg_match( '/^[a-f0-9]{64}$/D', $token )
 		|| ! is_string( $name ) || ! preg_match( '/^(manifest\.json|files\.ndjson|part-[0-9]{5,}\.zip)$/D', $name ) ) {
@@ -156,12 +163,12 @@ function remote_download_export() {
 		exit;
 	}
 	try {
-		$items = with_workspace_lock( static function ( $root ) use ( $id, $name, $token ) {
+		$scheme = is_ssl() ? 'https' : 'http';
+		$items = with_workspace_lock( static function ( $root ) use ( $id, $name, $token, $scheme ) {
 			$dir = export_directory( $root, $id );
 			$job = read_record( $dir . '/job.json' );
-			$link = $job['remote_link'] ?? array();
-			if ( $job['id'] !== $id || ( $link['expires'] ?? 0 ) <= time()
-				|| ! hash_equals( $link['digest'] ?? '', hash( 'sha256', $token ) ) ) {
+			if ( $job['id'] !== $id || ! active_remote_link_expiry( $job ) || ( $job['remote_link']['scheme'] ?? 'https' ) !== $scheme
+				|| ! hash_equals( $job['remote_link']['digest'], hash( 'sha256', $token ) ) ) {
 				throw new RuntimeException();
 			}
 			list( $items ) = prepare_download( $dir, $name, false, false );

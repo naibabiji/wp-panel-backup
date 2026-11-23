@@ -321,6 +321,32 @@
 	margin-top: 10px;
 }
 
+.wp-panel-backup .wppb-backup-actions,
+.wp-panel-backup .wppb-link-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px 12px;
+}
+
+.wp-panel-backup .wppb-link-actions .button-link-delete {
+	min-height: 30px;
+	padding-inline: 4px;
+}
+
+.wp-panel-backup [data-wppb-link] {
+	box-sizing: border-box;
+	margin-top: 10px;
+}
+
+.wp-panel-backup .wppb-link-status {
+	margin: 5px 0 0;
+}
+
+.wp-panel-backup .wppb-link-status:empty {
+	margin: 0;
+}
+
 .wp-panel-backup .wppb-download-state {
 	margin-inline-start: 8px;
 }

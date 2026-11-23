@@ -2,16 +2,16 @@
 
 独立 WordPress 源站备份插件，供管理员将常规网站备份为可下载材料，后续由 WP Panel 从备份创建同域名网站。
 
-**当前候选包：`dist/wp-panel-backup-1.0.0-rc11.zip`（提交 `4ea34f2`）。** WordPress.org 尚未提交。
+**当前候选包：`dist/wp-panel-backup-1.0.0-rc16.zip`（支持 HTTP 与 HTTPS 恢复链接）。** WordPress.org 尚未提交。
 
-当前源码面向最低 WordPress 6.5、PHP 7.0。源站的 WordPress 版本还须支持其实际 PHP 版本，并满足 64 位 PHP、ZIP、原生 mysqli、InnoDB 和既有预检要求。许可证为 GPL-2.0-or-later。公开说明见 [readme.txt](readme.txt)。两项目的备份格式复核和端到端恢复验收仍待进行。
+当前源码面向最低 WordPress 6.5、PHP 7.0。源站的 WordPress 版本还须支持其实际 PHP 版本，并满足 64 位 PHP、ZIP、原生 mysqli、InnoDB 和既有预检要求。许可证为 GPL-2.0-or-later。公开说明见 [readme.txt](readme.txt)。v1 格式已确认随首发冻结。上传恢复和 HTTPS 链接恢复已通过真实站点验收。RC16 已通过隔离 HTTP 站点测试，实际 HTTP 源站到局域网的完整拉取待用户测试。
 
 源站不需要安装或连接 WP Panel；插件不承担恢复、域名替换、云存储或定时备份。
 
 - [AI 接手入口](AI-CONTEXT.md)
 - [当前需求与确认来源](docs/requirements.md)
 - [职责和开发阶段](docs/architecture.md)
-- [备份格式候选](docs/backup-format.md)
+- [v1 备份格式](docs/backup-format.md)
 - [与 WP Panel 的关系](docs/integrations/wp-panel.md)
 - [自动排除目录与识别依据](docs/directory-exclusions.md)
 - [待定事项](docs/pending-decisions.md)
@@ -22,13 +22,13 @@
 
 ## 开发测试站使用
 
-在 WordPress 后台进入「插件 → 安装插件 → 上传插件」，上传 `wp-panel-backup-1.0.0-rc11.zip` 并启用。安装包包含插件运行文件、公开说明和许可证。最低 WordPress 6.5、PHP 7.0。
+在 WordPress 后台进入「插件 → 安装插件 → 上传插件」，上传 `wp-panel-backup-1.0.0-rc16.zip` 并启用。更新现有试装版时，按 WordPress 提示替换当前插件。安装包包含插件运行文件、公开说明和许可证。最低 WordPress 6.5、PHP 7.0。
 
 当前源码的备份页在源站 PHP 主、次版本与 WP PANEL 的 PHP 8.3 不同时显示兼容提示。提示不影响备份。恢复后如网站无法打开，可查看目标站 PHP 错误日志，并自行修复或使用 WP PANEL 的 AI 开发功能辅助排查。
 
 首次开始备份时，插件自动在 `wp-content` 下建立带随机后缀的工作目录，并生成 Apache 的 `.htaccess` 和 IIS 的 `web.config`。工作目录及新建任务子目录都生成 `index.php`、`index.html`，用于启用默认索引的服务器避免列出文件。创建成功便可备份，主机无需支持回环请求。写入失败会提示检查剩余空间、主机账号配额和目录权限。
 
-下载列表会显示直链访问提醒。请勿分享备份文件的 URL。如果服务器允许直接读取备份目录，未登录的访客知道完整 URL 后也能下载。使用 Nginx 时，应在创建备份前将下面的规则添加到对应站点的 `server` 配置，检测配置后重载 Nginx。此规则覆盖站内所有由插件创建的随机工作目录，后台授权下载仍可使用。
+下载列表会显示直链访问提醒。Apache 使用插件生成的 `.htaccess` 禁访规则，主机须允许该目录的 `.htaccess` 生效。请勿分享备份文件的 URL。如果服务器允许直接读取备份目录，未登录的访客知道完整 URL 后也能下载。使用 Nginx 时，应在创建备份前将下面的规则添加到对应站点的 `server` 配置，检测配置后重载 Nginx。此规则覆盖站内所有由插件创建的随机工作目录，后台授权下载仍可使用。
 
 ```nginx
 location ^~ /wp-content/wp-panel-backup-storage- {
@@ -44,7 +44,7 @@ RC8 修复 WooCommerce 等插件开启后台输出缓冲时的大文件下载内
 
 整套 TAR 下载名示例为 `18kcustoms.com-20261123-100935-a7f3c2e9.tar`，包含源站域名、站点时区的备份完成时间和备份 ID 前 8 位。旧备份升级后首次按新规则下载时使用当时的站点时区，之后重复下载沿用同名。
 
-RC11 减少数据库导出的 HTTP 请求次数和批次等待。对照 RC10 时，使用同一站点和同一备份方式，记录「导出数据库」到「生成 ZIP 分包」之间的耗时。
+在「备份列表」为已完成备份生成「恢复链接」，再粘贴到支持此功能的 WP PANEL 恢复建站页面。源站需能通过公网 HTTP 或 HTTPS 访问。HTTP 会明文传输恢复链接和备份数据。链接最长有效 12 小时，只有链接有效时才显示撤销操作。链接能读取备份材料，请只交给目标面板管理员。历史性能对照见验收记录。
 
 临时维护异常时可在插件页面手动解除，搬家维护须使用「取消搬家并恢复原站」。后台无法访问且确需开放原站时，由主机管理员等当前备份请求结束后，移除该站工作目录中的 `maintenance.json`，再进后台确认任务状态。
 

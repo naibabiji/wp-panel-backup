@@ -477,6 +477,7 @@ function render_download_notice() {
 	?>
 	<div class="wppb-notice wppb-info">
 		<p><strong><?php esc_html_e( '下载安全', 'wp-panel-backup' ); ?></strong><?php esc_html_e( '　请勿分享备份文件的 URL。如果服务器允许直接访问备份目录，知道完整 URL 的访客无需登录即可下载。', 'wp-panel-backup' ); ?></p>
+		<p><?php esc_html_e( 'Apache：插件已在备份目录生成 .htaccess 禁访规则。主机须允许该目录的 .htaccess 生效，否则请在 Apache 站点配置中禁止直接访问备份目录。', 'wp-panel-backup' ); ?></p>
 		<details>
 			<summary><?php esc_html_e( '在 Nginx 禁止直接下载', 'wp-panel-backup' ); ?></summary>
 			<p><?php esc_html_e( '将下面的规则添加到此站点的 Nginx server 配置，检测配置后重载 Nginx。管理员仍可从备份列表下载。', 'wp-panel-backup' ); ?></p>
@@ -489,19 +490,30 @@ function render_download_notice() {
 function render_export_downloads( $job ) {
 	$names = array_merge( array( 'manifest.json', 'files.ndjson' ), array_column( $job['packages'], 'name' ) );
 	$expiry = wp_date( 'Y-m-d H:i T', $job['completed_at'] + 7 * DAY_IN_SECONDS );
+	$link_remaining = max( 0, active_remote_link_expiry( $job ) - time() );
+	$generate = __( '生成恢复链接', 'wp-panel-backup' );
+	$regenerate = __( '重新生成链接', 'wp-panel-backup' );
 	?>
 	<p class="wppb-meta"><?php /* translators: Backup expiration date. */ echo esc_html( sprintf( __( '到期时间 %s。刷新此页可查看已发起的下载。', 'wp-panel-backup' ), $expiry ) ); ?></p>
-	<?php render_artifact_download( $job, BUNDLE_ARTIFACT, __( '下载整套（TAR）', 'wp-panel-backup' ), 'primary' ); ?>
-	<form data-wppb-remote-link action="<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>" method="post">
-		<input type="hidden" name="action" value="wp_panel_backup_remote_link">
-		<input type="hidden" name="job" value="<?php echo esc_attr( $job['id'] ); ?>">
-		<?php wp_nonce_field( 'wp-panel-backup-remote-link-' . $job['id'], '_wp_panel_backup_remote_nonce' ); ?>
-		<button class="button" type="submit" name="operation" value="generate"><?php esc_html_e( '生成恢复链接', 'wp-panel-backup' ); ?></button>
-		<button class="button" type="submit" name="operation" value="revoke"><?php esc_html_e( '撤销恢复链接', 'wp-panel-backup' ); ?></button>
-		<p class="wppb-meta"><?php esc_html_e( '链接仅可读取这份备份，最长有效 12 小时。生成新链接会替换之前的链接。', 'wp-panel-backup' ); ?></p>
+	<div data-wppb-remote-link data-wppb-remaining="<?php echo esc_attr( $link_remaining ); ?>">
+		<div class="wppb-backup-actions">
+			<?php render_artifact_download( $job, BUNDLE_ARTIFACT, __( '下载整套（TAR）', 'wp-panel-backup' ), 'primary' ); ?>
+			<form class="wppb-link-actions" action="<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>" method="post">
+				<input type="hidden" name="action" value="wp_panel_backup_remote_link">
+				<input type="hidden" name="job" value="<?php echo esc_attr( $job['id'] ); ?>">
+				<?php wp_nonce_field( 'wp-panel-backup-remote-link-' . $job['id'], '_wp_panel_backup_remote_nonce' ); ?>
+				<button class="button" type="submit" name="operation" value="generate" data-generate="<?php echo esc_attr( $generate ); ?>" data-regenerate="<?php echo esc_attr( $regenerate ); ?>"><?php echo esc_html( $link_remaining ? $regenerate : $generate ); ?></button>
+				<button class="button-link button-link-delete" type="submit" name="operation" value="revoke" <?php if ( ! $link_remaining ) : ?>hidden<?php endif; ?>><?php esc_html_e( '撤销链接', 'wp-panel-backup' ); ?></button>
+			</form>
+		</div>
 		<input type="text" class="large-text" data-wppb-link readonly hidden aria-label="<?php esc_attr_e( '恢复链接', 'wp-panel-backup' ); ?>">
-		<p data-wppb-message role="status"></p>
-	</form>
+		<p class="wppb-meta wppb-link-status" data-wppb-message role="status"><?php
+		if ( $link_remaining ) {
+			/* translators: Restore link expiration date. */
+			echo esc_html( sprintf( __( '链接有效至 %s。重新生成会使旧链接失效。', 'wp-panel-backup' ), wp_date( 'Y-m-d H:i T', $job['remote_link']['expires'] ) ) );
+		}
+		?></p>
+	</div>
 	<details class="wppb-fold wppb-downloads">
 		<summary><?php /* translators: Number of separately downloadable backup files. */ echo esc_html( sprintf( __( '逐份下载（%d 份）', 'wp-panel-backup' ), count( $names ) ) ); ?></summary>
 		<ul>

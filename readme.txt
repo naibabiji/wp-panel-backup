@@ -57,12 +57,13 @@ Temporary maintenance ends automatically when the backup succeeds. To end it ear
 
 = Can WP PANEL import the backup? =
 
-The export contains a JSON manifest, a line-delimited JSON file index, and self-contained ZIP volumes. The TAR option bundles those same files. The plugin creates source exports. The WP PANEL one-click importer is not yet available. The original wp-config.php is included for migration reference.
+The export contains a JSON manifest, a line-delimited JSON file index, and self-contained ZIP volumes. The TAR option bundles those same files. For a compatible WP PANEL destination, generate a private restore link from a completed backup and paste it into the panel's restore form. The destination can pull the backup directly from a public HTTP or HTTPS source. HTTP transmits the restore link and backup data without encryption. The link lasts up to 12 hours and can be revoked from the backup list. Share it only with the destination administrator. The original wp-config.php is included for migration reference.
 
 == Changelog ==
 
 = 1.0.0 =
 * Adds site and database export, three backup modes, and whole-backup or separate file downloads.
+* Adds expiring restore links so a compatible WP PANEL destination can download a completed backup directly.
 * Sends large downloads in bounded chunks to reduce memory use on hosts with PHP output buffering.
 * Clears admin output buffers before sending backup downloads, including on WooCommerce sites.
 * Names whole-backup TAR downloads with the source domain, local completion time, and a short backup ID.
