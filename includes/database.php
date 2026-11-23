@@ -180,7 +180,10 @@ function export_database_step( $directory, &$job ) {
 			$written = 0;
 			$last = null;
 			$started = microtime( true );
-			$insert = 'INSERT INTO ' . sql_name( $table ) . ' (' . implode( ', ', $quoted ) . ') VALUES (';
+			$batch_limit = 4 * 1024 * 1024;
+			$insert = 'INSERT INTO ' . sql_name( $table ) . ' (' . implode( ', ', $quoted ) . ') VALUES ';
+			$statement = $insert;
+			$batch_rows = 0;
 			while ( is_array( $row = $result->fetch_row() ) ) {
 				$literals = array();
 				$values = array();
@@ -188,10 +191,17 @@ function export_database_step( $directory, &$job ) {
 					$values[ $name ] = $row[ $index ];
 					$literals[] = sql_literal( $row[ $index ], $columns[ $name ] );
 				}
-				$line = $insert . implode( ', ', $literals ) . ");\n";
-				write_bytes( $stream, $line );
+				$tuple = '(' . implode( ', ', $literals ) . ')';
+				// Leave space for both the row separator and the statement terminator.
+				if ( $batch_rows > 0 && ( $batch_rows >= 256 || strlen( $statement ) + strlen( $tuple ) + 4 > $batch_limit ) ) {
+					write_bytes( $stream, $statement . ";\n" );
+					$written += strlen( $statement ) + 2;
+					$statement = $insert;
+					$batch_rows = 0;
+				}
+				$statement .= ( $batch_rows ? ",\n" : '' ) . $tuple;
+				++$batch_rows;
 				++$row_count;
-				$written += strlen( $line );
 				$last = $values;
 				foreach ( array_keys( $key_columns ) as $index => $key ) {
 					$last[ $key ] = $row[ count( $names ) + $index ];
@@ -199,12 +209,16 @@ function export_database_step( $directory, &$job ) {
 				if ( ! $primary && microtime( true ) - $started > 15 ) {
 					throw new RuntimeException( __( '无主键表无法在一次短请求内导完。', 'wp-panel-backup' ) );
 				}
-				if ( $primary && $written >= 4 * 1024 * 1024 ) {
+				if ( $primary && $written + strlen( $statement ) + 2 >= $batch_limit ) {
 					break;
 				}
 			}
 			if ( $connection->errno || ( isset( $row ) && false === $row ) ) {
 				throw new RuntimeException( __( '数据库数据流读取中断。', 'wp-panel-backup' ) );
+			}
+			if ( $batch_rows > 0 ) {
+				write_bytes( $stream, $statement . ";\n" );
+				$written += strlen( $statement ) + 2;
 			}
 		} finally {
 			if ( $result instanceof \mysqli_result ) {
@@ -214,7 +228,7 @@ function export_database_step( $directory, &$job ) {
 		}
 
 		$job['table_rows'][ $job['table_index'] ] += $row_count;
-		if ( $primary && ( 512 === $row_count || $written >= 4 * 1024 * 1024 ) ) {
+		if ( $primary && ( 512 === $row_count || $written >= $batch_limit ) ) {
 			$job['cursor'] = array();
 			foreach ( $primary as $key ) {
 				$job['cursor'][] = $last[ $key ];

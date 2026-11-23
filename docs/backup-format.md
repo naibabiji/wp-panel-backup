@@ -35,6 +35,7 @@
 - `manifest.json` 包含 `id`、`complete`、`mode`、`completed_at`、`source`（`home`、`siteurl`、`prefix`）、`tables`（`name`、`rows`）、`exclusions`、`index` 和 `packages`。材料引用记录 `name`、`size` 和 `sha256`。
 - `files.ndjson` 是 UTF-8 的逐行 JSON。记录类型按 `kind` 区分为 `directory`、`excluded`、`block`、`file` 和 `sql`。排除记录含 `path` 和 `reason`。文件和 SQL 结束记录含 `path`、`size`、`sha256`；零字节文件只有结束记录。
 - 块记录含 `target`（`file` 或 `sql`）、`path`、`package`、`member`、`offset`、`length`、`sha256`。同一目标按偏移顺序拼接。SQL 的逻辑路径 `database.sql` 与网站同名文件分开识别。原站 `wp-config.php` 以原路径记录，消费端只作配置参考。
+- 2026-11-23：同表同列的普通 SQL 行合并为标准多行 INSERT，每条最多 256 行和 4 MiB（含语句头、行间隔和末尾）。超出批次预算的单行独立写入，仍取决于目标 MariaDB 的单语句限制。每步写完再保存既有偏移。SQL 块、清单、分包和格式版本保持兼容，面板普通恢复和恢复建站共用同一导入核心。
 - 分包文件名为 `part-00001.zip` 起的连续序号。各自是普通独立 ZIP，成员位置由索引指向。块最多 16 MiB。新任务的单包原始载荷可选 128 MiB、512 MiB 或 1 GiB，默认 512 MiB。已有任务使用原预算。源端可以跨多个 HTTP 请求累积同一包。达到载荷预算或完成扫描后写出分包，极多微小文件时也受单包条目数上限约束。成品 ZIP 实际字节取决于压缩。
 - 全套材料需要单独的清单和索引。ZIP 不包含本地任务状态、工作目录、维护标记或下载状态。正式发布格式仍待跨项目复核。
 - 自动站内工作目录仅在索引中以 `kind: excluded`、`reason: workspace` 记录。随机磁盘目录不影响用户下载的文件名。
