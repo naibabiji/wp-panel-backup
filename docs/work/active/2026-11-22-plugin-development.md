@@ -217,3 +217,7 @@
 - 用固定大小块读取和输出已打开的备份文件，验证低内存 PHP-FPM 下的单包及整套传输和 WordPress 现有下载流程。
 - 复审通过。隔离 PHP-FPM 用旧实现重现内存耗尽，新实现完整传输约 512 MiB 单包及约 14.6 GiB 整套 TAR。实际 WordPress 备份重组与权限验证见[验收文档](../../acceptance.md)。
 - 从 `9fa65fa` 生成 `dist/wp-panel-backup-1.0.0-rc7.zip`，逐字节核对 13 个文件。SHA-256 为 `5b84bb671f2acac09fd563fb0aef7a8eaeaaa59dfce0748d1de851e000a2aa7b`。
+- 线上安装 RC7 后，绕过 CDN 仍重现 PHP 256 MiB 内存耗尽。站点 WooCommerce 的 `admin_init` 回调叠加了不会自动刷出的输出缓冲。用户授权继续修复并打包，下载入口验证管理员和 nonce 后清理输出缓冲，再按块传输。
+- 复审通过。隔离 PHP-FPM 叠加同类缓冲后用 RC7 重现线上报错，RC8 完整发送约 512 MiB 单包和 14.6 GiB TAR。另在实际启用 WooCommerce 的隔离 WordPress 验证备份、下载和重组。
+- 已生成 `dist/wp-panel-backup-1.0.0-rc8.zip`，包内 13 个文件与工作区源码逐字节一致，SHA-256 为 `408c5365557425e2cd5650ce5679609163d44df82f5f76532d99c8964706ed85`。
+- 用户确认原站覆盖安装 RC8 后已正常开始下载，计划下载结束后在局域网服务器测试恢复。完整下载和恢复结果待确认。按授权提交修复，复核现有 RC8 包内 13 个文件与 `2c59107` 逐字节一致。
