@@ -1,53 +1,31 @@
 # WP PANEL Backup
 
-独立 WordPress 源站备份插件，供管理员将常规网站备份为可下载材料，后续由 WP Panel 从备份创建同域名网站。
+WP PANEL Backup 是一个 WordPress 备份和迁移插件，可把站点文件和数据库导出为可下载的备份。你可以保留本地副本，也可以使用兼容的 WP Panel 从备份创建同域名的新站。源站可独立运行插件，无需安装 WP Panel。
 
-**当前候选包：`dist/wp-panel-backup-1.0.0-rc17.zip`（支持 HTTP 与 HTTPS 恢复链接）。** WordPress.org 尚未提交。
+## 功能
 
-当前源码面向最低 WordPress 6.5、PHP 7.0。源站的 WordPress 版本还须支持其实际 PHP 版本，并满足 64 位 PHP、ZIP、原生 mysqli、InnoDB 和既有预检要求。许可证为 GPL-2.0-or-later。公开说明见 [readme.txt](readme.txt)。v1 格式已确认随首发冻结。
+- 导出站点根目录内的文件和受支持数据库中的全部表，包括自建表和历史前缀表。
+- 提供正常备份、临时维护备份和搬家备份三种模式。备份分批推进，离开页面后可回来继续。
+- 支持整套 TAR 下载，也可分别下载清单、文件索引和 ZIP 分包。
+- 可为已完成的备份生成最长有效 12 小时的可撤销恢复链接，供兼容的 WP Panel 拉取材料。恢复链接支持 HTTP 和 HTTPS，HTTP 会明文传输备份数据。
+- 最多保留最近两套成品，每套最长保留七天。
 
-真实站点已通过上传恢复和 HTTPS 链接恢复验收。源站安装 RC17，面板候选 `6162407` 在 Debian 13 测试 VPS 完成 HTTPS 实站复测。RC17 与面板 `6162407` 已通过纯 HTTP 端到端隔离验收。纯 HTTP 公网源站到局域网的完整拉取尚无实测记录。详见[验收记录](docs/acceptance.md)。
+## 安装与使用
 
-源站不需要安装或连接 WP Panel；插件不承担恢复、域名替换、云存储或定时备份。
+1. 下载 [WP PANEL Backup 1.0.0 安装包](https://github.com/naibabiji/wp-panel-backup/releases/download/v1.0.0/wp-panel-backup-1.0.0.zip)。
+2. 在 WordPress 后台打开「插件 → 安装插件 → 上传插件」，上传 ZIP 并启用。
+3. 打开「工具 → WP PANEL Backup」，选择备份模式与分包大小，点击「开始备份」。
+4. 保持页面打开，直到备份完成。随后到「备份列表」下载成品，或生成恢复链接并粘贴到 WP Panel 的「从备份创建网站」页面。
 
-- [AI 接手入口](AI-CONTEXT.md)
-- [当前需求与确认来源](docs/requirements.md)
-- [职责和开发阶段](docs/architecture.md)
-- [v1 备份格式](docs/backup-format.md)
-- [与 WP Panel 的关系](docs/integrations/wp-panel.md)
-- [自动排除目录与识别依据](docs/directory-exclusions.md)
-- [待定事项](docs/pending-decisions.md)
-- [常见场景验收](docs/acceptance.md)
-- [活动任务](docs/work/README.md)
+## 运行要求
 
-项目开发仓库为私有 GitHub 仓库 [naibabiji/wp-panel-backup](https://github.com/naibabiji/wp-panel-backup)。
+- WordPress 6.5 或以上，PHP 7.0 或以上。实际使用的 WordPress 版本须支持源站 PHP 版本。
+- 64 位 PHP，启用 ZIP 扩展，并使用原生 mysqli 连接。
+- WordPress 安装于网站根目录，采用标准 HTTP 或 HTTPS 端口，站点地址与 WordPress 地址一致。支持单站点。
+- 数据库表使用 InnoDB，数据库账号可读取全部表及对象元数据。预检会拒绝视图、触发器、事件和存储程序。
 
-## 开发测试站使用
+备份包含数据库及站点配置副本。备份目录需由 Web 服务器禁止直接访问，Nginx 配置示例可在备份列表查看。恢复链接仅交给目标面板管理员。
 
-在 WordPress 后台进入「插件 → 安装插件 → 上传插件」，上传 `wp-panel-backup-1.0.0-rc17.zip` 并启用。更新现有试装版时，按 WordPress 提示替换当前插件。安装包包含插件运行文件、公开说明和许可证。最低 WordPress 6.5、PHP 7.0。
+## 许可证
 
-当前源码的备份页在源站 PHP 主、次版本与 WP PANEL 的 PHP 8.3 不同时显示兼容提示。提示不影响备份。恢复后如网站无法打开，可查看目标站 PHP 错误日志，并自行修复或使用 WP PANEL 的 AI 开发功能辅助排查。
-
-首次开始备份时，插件自动在 `wp-content` 下建立带随机后缀的工作目录，并生成 Apache 的 `.htaccess` 和 IIS 的 `web.config`。工作目录及新建任务子目录都生成 `index.php`、`index.html`，用于启用默认索引的服务器避免列出文件。创建成功便可备份，主机无需支持回环请求。写入失败会提示检查剩余空间、主机账号配额和目录权限。
-
-下载列表会显示直链访问提醒。Apache 使用插件生成的 `.htaccess` 禁访规则，主机须允许该目录的 `.htaccess` 生效。请勿分享备份文件的 URL。如果服务器允许直接读取备份目录，未登录的访客知道完整 URL 后也能下载。使用 Nginx 时，应在创建备份前将下面的规则添加到对应站点的 `server` 配置，检测配置后重载 Nginx。此规则覆盖站内所有由插件创建的随机工作目录，后台授权下载仍可使用。
-
-```nginx
-location ^~ /wp-content/wp-panel-backup-storage- {
-    return 403;
-}
-```
-
-在插件列表点 WP PANEL Backup 下方的「备份」，或通过「工具 → WP PANEL Backup」打开备份页。备份页会列出识别到的缓存和备份目录，默认跳过。存在标准缓存加载文件时，页面也会列出并自动跳过，源文件照常使用，目标恢复后重新配置缓存。选择模式并点「开始备份」，插件会自动完成预检。执行期间仅更新进度区域，圆环在等待批次时持续转动。启用系统的「减少动态效果」设置时显示静态圆环。保持此页打开即可自动推进。离开页面或网络请求中断后，可点「继续备份」从已保存的进度继续。创建备份时可选 128 MiB、512 MiB 或 1 GiB 的单包原始载荷，默认 512 MiB。完成后自动进入「备份列表」，可下载一个整套 TAR，也可逐份下载清单、索引和 ZIP。整套 TAR 解开后得到完全相同的材料。完整材料保留最近两套且最长 7 天，半成品从最后有效推进起保留 7 天。
-
-备份运行时会提示大型站点可能需要较长时间。阶段标题下方固定一行显示已导出的 SQL 大小和已处理的站点文件原始大小，数值随批次更新。
-
-RC8 修复 WooCommerce 等插件开启后台输出缓冲时的大文件下载内存问题。升级后可从备份列表重新下载尚在保留期内的备份。
-
-整套 TAR 下载名示例为 `18kcustoms.com-20261123-100935-a7f3c2e9.tar`，包含源站域名、站点时区的备份完成时间和备份 ID 前 8 位。旧备份升级后首次按新规则下载时使用当时的站点时区，之后重复下载沿用同名。
-
-在「备份列表」为已完成备份生成「恢复链接」，再粘贴到支持此功能的 WP PANEL 恢复建站页面。源站需能通过公网 HTTP 或 HTTPS 访问。HTTP 会明文传输恢复链接和备份数据。链接最长有效 12 小时，只有链接有效时才显示撤销操作。链接能读取备份材料，请只交给目标面板管理员。历史性能对照见验收记录。
-
-临时维护异常时可在插件页面手动解除，搬家维护须使用「取消搬家并恢复原站」。后台无法访问且确需开放原站时，由主机管理员等当前备份请求结束后，移除该站工作目录中的 `maintenance.json`，再进后台确认任务状态。
-
-实际使用范围与已验证限制见[验收记录](docs/acceptance.md)和[开发任务卡](docs/work/active/2026-11-22-plugin-development.md)。
+[GPL-2.0-or-later](LICENSE.txt)
