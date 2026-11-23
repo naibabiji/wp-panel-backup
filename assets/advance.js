@@ -1,0 +1,189 @@
+(() => {
+	const form = document.getElementById('wp-panel-backup-advance');
+	if (!form || !window.fetch) {
+		return;
+	}
+
+	const { __ } = wp.i18n;
+	const panel = document.getElementById('wp-panel-backup-progress');
+	const maintenance = document.getElementById('wp-panel-backup-maintenance');
+	const field = (name) => panel.querySelector('[data-progress="' + name + '"]');
+	const spinner = field('spinner');
+	const resume = form.querySelector('button');
+	const cancel = panel.querySelector('input[value="cancel"]').form;
+	let timer;
+	let pending = false;
+	let queuedAction;
+	let leaving = false;
+
+	function update(name, value) {
+		const element = field(name);
+		if (element.textContent !== value) {
+			element.textContent = value;
+		}
+		element.hidden = !value;
+	}
+
+	function pause(message) {
+		spinner.hidden = true;
+		update('hint', __('备份已暂停，可以从已保存的进度继续。', 'wp-panel-backup'));
+		update('error', message);
+		resume.textContent = __('继续备份', 'wp-panel-backup');
+		form.hidden = false;
+	}
+
+	async function advance() {
+		if (pending || leaving) {
+			return;
+		}
+		pending = true;
+		try {
+			const body = new FormData(form);
+			body.set('action', 'wp_panel_backup_advance');
+			const response = await fetch(form.dataset.endpoint, {
+				method: 'POST',
+				credentials: 'same-origin',
+				body
+			});
+			const result = await response.json();
+			if (leaving || queuedAction) {
+				return;
+			}
+			if (!response.ok || !result.success) {
+				pause(result.data?.message || __('无法继续备份。请重新打开备份页面后重试。', 'wp-panel-backup'));
+				return;
+			}
+
+			const progress = result.data;
+			if (maintenance) {
+				maintenance.hidden = !progress.maintenance;
+			}
+			panel.dataset.phase = progress.phase;
+			update('label', progress.label);
+			update('processed', progress.processed);
+			update('error', progress.error);
+			spinner.hidden = !progress.running;
+			if (progress.running) {
+				const delay = progress.phase === 'database' || progress.phase === 'package' ? 75 : 300;
+				timer = window.setTimeout(advance, delay);
+			} else if (progress.listUrl) {
+				window.location.replace(progress.listUrl);
+			} else {
+				update('hint', '');
+				cancel.hidden = true;
+				field('return').hidden = false;
+			}
+		} catch {
+			if (!leaving && !queuedAction) {
+				pause(__('未收到备份请求的有效响应。请检查网络或重新登录，然后继续备份。', 'wp-panel-backup'));
+			}
+		} finally {
+			pending = false;
+			if (queuedAction && !leaving) {
+				spinner.hidden = true;
+				queuedAction.requestSubmit();
+			}
+		}
+	}
+
+	function run() {
+		form.hidden = true;
+		spinner.hidden = false;
+		update('error', '');
+		update('hint', field('hint').dataset.runningText);
+		timer = window.setTimeout(advance, 300);
+	}
+
+	form.addEventListener('submit', (event) => {
+		event.preventDefault();
+		run();
+	});
+	function afterBatch(event) {
+		window.clearTimeout(timer);
+		if (pending) {
+			event.preventDefault();
+			if (!queuedAction) {
+				queuedAction = event.currentTarget;
+				queuedAction.querySelector('[type="submit"]').disabled = true;
+				update('hint', __('当前批次结束后将执行此操作。', 'wp-panel-backup'));
+			}
+		} else {
+			spinner.hidden = true;
+		}
+	}
+	cancel.addEventListener('submit', afterBatch);
+	if (maintenance) {
+		maintenance.querySelector('form').addEventListener('submit', afterBatch);
+	}
+	window.addEventListener('pagehide', () => {
+		leaving = true;
+		window.clearTimeout(timer);
+	});
+	window.addEventListener('pageshow', (event) => {
+		if (event.persisted) {
+			window.location.reload();
+		}
+	});
+
+	if (form.dataset.running === '1') {
+		const url = new URL(window.location.href);
+		url.searchParams.delete('run');
+		window.history.replaceState(window.history.state, '', url);
+		run();
+	}
+})();
+
+
+document.querySelectorAll('[data-wppb-remote-link]').forEach(panel => {
+	const { __, sprintf } = wp.i18n;
+	const form = panel.querySelector('.wppb-link-actions');
+	const generate = form.querySelector('button[value="generate"]');
+	const revoke = form.querySelector('button[value="revoke"]');
+	const link = panel.querySelector('[data-wppb-link]');
+	const message = panel.querySelector('[data-wppb-message]');
+	let expiryTimer;
+
+	function showLink(value, remaining) {
+		window.clearTimeout(expiryTimer);
+		const active = remaining > 0;
+		generate.textContent = active ? generate.dataset.regenerate : generate.dataset.generate;
+		revoke.hidden = !active;
+		link.value = active ? value : '';
+		link.hidden = !link.value;
+		if (active) {
+			expiryTimer = window.setTimeout(() => {
+				const wasFocused = document.activeElement === revoke || document.activeElement === link;
+				showLink('', 0);
+				message.textContent = __('恢复链接已到期。', 'wp-panel-backup');
+				if (wasFocused) generate.focus();
+			}, remaining * 1000);
+		}
+	}
+
+	showLink('', Number(panel.dataset.wppbRemaining));
+	form.addEventListener('submit', async event => {
+		event.preventDefault();
+		const operation = event.submitter?.value || 'generate';
+		const body = new FormData(form);
+		body.set('operation', operation);
+		generate.disabled = revoke.disabled = true;
+		let focus;
+		try {
+			const response = await fetch(form.getAttribute('action'), {method: 'POST', credentials: 'same-origin', body, cache: 'no-store'});
+			const result = await response.json();
+			if (!result.success) throw new Error(result.data?.message);
+			showLink(result.data.link, result.data.remaining);
+			message.textContent = link.value
+				? sprintf(__('链接有效至 %s。重新生成会使旧链接失效。', 'wp-panel-backup'), result.data.expires)
+				: operation === 'revoke' ? __('恢复链接已撤销。', 'wp-panel-backup') : __('恢复链接已到期。', 'wp-panel-backup');
+			focus = link.value ? link : generate;
+		} catch (error) {
+			message.textContent = error.message || __('恢复链接操作失败。', 'wp-panel-backup');
+			focus = event.submitter;
+		} finally {
+			generate.disabled = revoke.disabled = false;
+			if (focus && !focus.hidden) focus.focus();
+			if (focus === link) link.select();
+		}
+	});
+});
