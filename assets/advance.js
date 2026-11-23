@@ -64,7 +64,8 @@
 			update('error', progress.error);
 			spinner.hidden = !progress.running;
 			if (progress.running) {
-				timer = window.setTimeout(advance, progress.phase === 'database' ? 75 : 300);
+				const delay = progress.phase === 'database' || progress.phase === 'package' ? 75 : 300;
+				timer = window.setTimeout(advance, delay);
 			} else if (progress.listUrl) {
 				window.location.replace(progress.listUrl);
 			} else {

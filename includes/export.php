@@ -149,6 +149,46 @@ function open_source_file( $path, $entry ) {
 	return $stream;
 }
 
+function file_zip_method( $stream, $path ) {
+	$extension = strtolower( pathinfo( $path, PATHINFO_EXTENSION ) );
+	if ( ! in_array( $extension, array( 'jpg', 'jpeg', 'webp', 'avif', 'gif' ), true ) ) {
+		return 'd';
+	}
+
+	$header = fread( $stream, 64 );
+	if ( false === $header ) {
+		return 'd';
+	}
+	switch ( $extension ) {
+		case 'jpg':
+		case 'jpeg':
+			return "\xff\xd8\xff" === substr( $header, 0, 3 ) ? 's' : 'd';
+		case 'webp':
+			return 'RIFF' === substr( $header, 0, 4 ) && 'WEBP' === substr( $header, 8, 4 ) ? 's' : 'd';
+		case 'avif':
+			if ( strlen( $header ) < 16 || 'ftyp' !== substr( $header, 4, 4 ) ) {
+				return 'd';
+			}
+			$box = unpack( 'Nsize', substr( $header, 0, 4 ) );
+			$size = min( $box['size'], strlen( $header ) );
+			if ( $size < 16 ) {
+				return 'd';
+			}
+			if ( in_array( substr( $header, 8, 4 ), array( 'avif', 'avis' ), true ) ) {
+				return 's';
+			}
+			for ( $offset = 16; $offset + 4 <= $size; $offset += 4 ) {
+				if ( in_array( substr( $header, $offset, 4 ), array( 'avif', 'avis' ), true ) ) {
+					return 's';
+				}
+			}
+			return 'd';
+		case 'gif':
+			return in_array( substr( $header, 0, 6 ), array( 'GIF87a', 'GIF89a' ), true ) ? 'f' : 'd';
+	}
+	return 'd';
+}
+
 function pack_export_step( $directory, &$job ) {
 	$queue = fopen( $directory . '/queue.ndjson', 'rb' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Native stream supports locking, seeking, and bounded reads.
 	if ( false === $queue ) {
@@ -164,6 +204,12 @@ function pack_export_step( $directory, &$job ) {
 	$payload_limit = $job['zip_payload_bytes'] ?? LEGACY_ZIP_PAYLOAD_BYTES;
 	$bytes = $job['pending_zip_bytes'] ?? 0;
 	$members = $job['pending_zip_members'] ?? 0;
+	// Each pending ZIP member has one method marker: default, store, or fast deflate.
+	$methods = $job['pending_zip_methods'] ?? '';
+	if ( strlen( $methods ) !== $members ) {
+		// Older code may have staged members without recording their methods.
+		$methods = str_repeat( 'd', $members );
+	}
 	$request_bytes = 0;
 	$published_members = 0;
 	$finished = ! empty( $job['archive_scan_complete'] );
@@ -193,6 +239,10 @@ function pack_export_step( $directory, &$job ) {
 			$stream = open_source_file( $source_path, $file );
 			try {
 				if ( $length > 0 ) {
+					if ( ! isset( $file['zip_method'] ) ) {
+						$file['zip_method'] = 'file' === $file['kind'] ? file_zip_method( $stream, $file['path'] ) : 'd';
+					}
+					$methods .= $file['zip_method'];
 					++$members;
 					$member = sprintf( 'data/%05d', $members );
 					$chunk = staged_chunk_path( $directory, $ordinal, $members );
@@ -254,13 +304,15 @@ function pack_export_step( $directory, &$job ) {
 		$job['index_offset'] = finish_output( $index );
 		// Close a ready ZIP separately from the requests that copied its raw data.
 		if ( 0 === $request_bytes && $members && ( $finished || $bytes === $payload_limit || $members === ZIP_MAX_MEMBERS ) ) {
-			$job['packages'][] = publish_staged_zip( $directory, $name, $ordinal, $members );
+			$job['packages'][] = publish_staged_zip( $directory, $name, $ordinal, $methods );
 			$published_members = $members;
 			$bytes = 0;
 			$members = 0;
+			$methods = '';
 		}
 		$job['pending_zip_bytes'] = $bytes;
 		$job['pending_zip_members'] = $members;
+		$job['pending_zip_methods'] = $methods;
 		$job['archive_scan_complete'] = $finished;
 		if ( $finished && ! $members ) {
 			$job['phase'] = 'complete';
@@ -293,18 +345,31 @@ function staged_chunk_path( $directory, $ordinal, $member ) {
 	return sprintf( '%s/chunk-%05d-%05d.raw', $directory, $ordinal, $member );
 }
 
-function publish_staged_zip( $directory, $name, $ordinal, $members ) {
+function publish_staged_zip( $directory, $name, $ordinal, $methods ) {
 	$path = $directory . '/building.zip';
 	$zip = new ZipArchive();
 	if ( true !== $zip->open( $path, ZipArchive::CREATE | ZipArchive::OVERWRITE ) ) {
 		throw new RuntimeException( storage_error( __( '无法创建 ZIP 分包。', 'wp-panel-backup' ), $directory ) );
 	}
+	$can_select_method = method_exists( $zip, 'setCompressionName' );
+	$members = strlen( $methods );
 	for ( $member = 1; $member <= $members; ++$member ) {
 		$chunk = staged_chunk_path( $directory, $ordinal, $member );
-		if ( ! is_file( $chunk ) || ! @$zip->addFile( $chunk, sprintf( 'data/%05d', $member ) ) ) {
+		$entry = sprintf( 'data/%05d', $member );
+		if ( ! is_file( $chunk ) || ! @$zip->addFile( $chunk, $entry ) ) {
 			$zip->unchangeAll();
 			@$zip->close();
 			throw new RuntimeException( __( '备份文件块缺失或无法加入 ZIP 分包。', 'wp-panel-backup' ) );
+		}
+		if ( ! $can_select_method ) {
+			continue;
+		}
+		$method = $methods[ $member - 1 ];
+		if ( ( 's' === $method && ! @$zip->setCompressionName( $entry, ZipArchive::CM_STORE ) )
+			|| ( 'f' === $method && ! @$zip->setCompressionName( $entry, ZipArchive::CM_DEFLATE, 1 ) ) ) {
+			$zip->unchangeAll();
+			@$zip->close();
+			throw new RuntimeException( __( '无法设置 ZIP 文件块压缩方式。', 'wp-panel-backup' ) );
 		}
 	}
 	if ( ! @$zip->close() ) {

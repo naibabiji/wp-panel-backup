@@ -67,3 +67,5 @@ The export contains a JSON manifest, a line-delimited JSON file index, and self-
 * Clears admin output buffers before sending backup downloads, including on WooCommerce sites.
 * Names whole-backup TAR downloads with the source domain, local completion time, and a short backup ID.
 * Reduces request overhead during database export while saving each batch's progress.
+* Shortens the wait between file packaging requests for large backups.
+* Speeds up ZIP creation for JPEG, WebP, AVIF, and GIF files while preserving the original file data.
