@@ -62,6 +62,7 @@
 			update('label', progress.label);
 			update('detail', progress.detail);
 			update('capacity', progress.capacity);
+			update('processed', progress.processed);
 			update('packages', progress.packages);
 			update('error', progress.error);
 			spinner.hidden = !progress.running;
@@ -91,7 +92,7 @@
 		form.hidden = true;
 		spinner.hidden = false;
 		update('error', '');
-		update('hint', __('备份正在进行。请保持此页打开，关闭后可返回继续。', 'wp-panel-backup'));
+		update('hint', field('hint').dataset.runningText);
 		timer = window.setTimeout(advance, 300);
 	}
 

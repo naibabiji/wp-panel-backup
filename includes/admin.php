@@ -107,11 +107,21 @@ function export_progress( $job ) {
 		/* translators: Total size of included files before compression. */
 		$capacity[] = sprintf( __( '备份文件原始大小 %s', 'wp-panel-backup' ), size_format( $job['file_size'], 1 ) );
 	}
+	$processed = array();
+	if ( ! empty( $job['sql_offset'] ) ) {
+		/* translators: Size of the SQL export written so far. */
+		$processed[] = sprintf( __( '已导出 SQL %s', 'wp-panel-backup' ), size_format( $job['sql_offset'], 1 ) );
+	}
+	if ( isset( $job['file_processed_bytes'] ) ) {
+		/* translators: Uncompressed size of the site file blocks collected so far. */
+		$processed[] = sprintf( __( '已处理站点文件 %s', 'wp-panel-backup' ), size_format( $job['file_processed_bytes'], 1 ) );
+	}
 	return array(
 		'phase' => $job['phase'],
 		'label' => $labels[ $job['phase'] ],
 		'detail' => $detail,
 		'capacity' => implode( ' · ', $capacity ),
+		'processed' => implode( ' · ', $processed ),
 		/* translators: Relative file or directory path. */
 		'packages' => sprintf( __( '%d 个 ZIP 包已生成', 'wp-panel-backup' ), count( $job['packages'] ) ),
 		'running' => export_is_running( $job ),
@@ -358,10 +368,7 @@ function render_export_controls( $list ) {
 			<p><label><input type="checkbox" name="exclude_cache" checked> <?php esc_html_e( '排除已识别的缓存目录', 'wp-panel-backup' ); ?></label></p>
 			<p><label><input type="checkbox" name="exclude_backups" checked> <?php esc_html_e( '排除已识别的备份目录', 'wp-panel-backup' ); ?></label></p>
 		</details>
-		<div class="wppb-actions">
-			<?php submit_button( __( '开始备份', 'wp-panel-backup' ), 'primary', 'submit', false, array( 'aria-describedby' => 'wp-panel-backup-duration' ) ); ?>
-			<p class="wppb-meta" id="wp-panel-backup-duration"><?php esc_html_e( '大型站点的备份可能需要较长时间。请保持此页面打开，等待备份完成。', 'wp-panel-backup' ); ?></p>
-		</div>
+		<div class="wppb-actions"><?php submit_button( __( '开始备份', 'wp-panel-backup' ), 'primary', 'submit', false ); ?></div>
 	</form>
 	<?php
 }
@@ -384,6 +391,7 @@ function render_active_export( $job, $modes ) {
 	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- These parameters select the rendered state. Each AJAX batch has its own nonce check.
 	$run = $job['id'] === sanitize_key( wp_unslash( $_GET['job'] ?? '' ) ) && '1' === sanitize_key( wp_unslash( $_GET['run'] ?? '' ) );
 	$progress = export_progress( $job );
+	$running_hint = __( '备份正在进行。大型站点可能需要较长时间，请保持此页打开。关闭后可返回继续。', 'wp-panel-backup' );
 	?>
 	<section class="wppb-card wppb-progress" id="wp-panel-backup-progress" data-phase="<?php echo esc_attr( $progress['phase'] ); ?>">
 		<div class="wppb-progress-heading">
@@ -397,9 +405,10 @@ function render_active_export( $job, $modes ) {
 			</p>
 			<p class="wppb-meta" data-progress="detail" <?php if ( '' === $progress['detail'] ) : ?>hidden<?php endif; ?>><?php echo esc_html( $progress['detail'] ); ?></p>
 			<p class="wppb-meta" data-progress="capacity" <?php if ( '' === $progress['capacity'] ) : ?>hidden<?php endif; ?>><?php echo esc_html( $progress['capacity'] ); ?></p>
+			<p class="wppb-meta" data-progress="processed" <?php if ( '' === $progress['processed'] ) : ?>hidden<?php endif; ?>><?php echo esc_html( $progress['processed'] ); ?></p>
 			<p class="wppb-meta" data-progress="packages"><?php echo esc_html( $progress['packages'] ); ?></p>
 		</div>
-		<p data-progress="hint" class="wppb-hint"><?php echo $run ? esc_html__( '备份正在进行。请保持此页打开，关闭后可返回继续。', 'wp-panel-backup' ) : esc_html__( '备份已暂停，可以从当前进度继续。', 'wp-panel-backup' ); ?></p>
+		<p data-progress="hint" data-running-text="<?php echo esc_attr( $running_hint ); ?>" class="wppb-hint"><?php echo $run ? esc_html( $running_hint ) : esc_html__( '备份已暂停，可以从当前进度继续。', 'wp-panel-backup' ); ?></p>
 		<p data-progress="error" class="wppb-notice wppb-error" role="alert" hidden></p>
 		<div class="wppb-actions">
 			<form id="wp-panel-backup-advance" data-running="<?php echo $run ? '1' : '0'; ?>" data-endpoint="<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">

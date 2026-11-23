@@ -227,6 +227,9 @@ function pack_export_step( $directory, &$job ) {
 					$file['offset'] += $length;
 					$bytes += $length;
 					$request_bytes += $length;
+					if ( 'file' === $file['kind'] && isset( $job['file_processed_bytes'] ) ) {
+						$job['file_processed_bytes'] += $length;
+					}
 				}
 				if ( $file['offset'] === $file['size'] ) {
 					if ( ! rewind( $stream ) ) {

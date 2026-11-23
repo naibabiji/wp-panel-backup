@@ -233,6 +233,7 @@ function export_database_step( $directory, &$job ) {
 		}
 		if ( $job['table_index'] === count( $job['tables'] ) ) {
 			write_bytes( $stream, "SET FOREIGN_KEY_CHECKS=1;\n" );
+			$job['file_processed_bytes'] = 0;
 			$job['phase'] = 'package';
 		}
 		$job['sql_offset'] = finish_output( $stream );
