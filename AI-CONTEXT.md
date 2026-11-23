@@ -2,10 +2,10 @@
 
 - 日期：2026-11-23。
 - 项目：WP PANEL Backup，源站独立备份插件；主文件为 wp-panel-backup.php。
-- 当前阶段：候选包 `dist/wp-panel-backup-1.0.0-rc17.zip` 支持 HTTP 和 HTTPS 恢复链接。配套面板候选已部署到局域网，健康检查 HTTP 200，四项核心服务正常，20 个站点的 HTTP 状态一致。历史记录见 [验收文档](docs/acceptance.md)。
+- 当前阶段：插件候选包为 `dist/wp-panel-backup-1.0.0-rc17.zip`，支持 HTTP 和 HTTPS 恢复链接。配套面板候选 `6162407` 已部署到 Debian 13 测试 VPS，源站安装 RC17，真实 HTTPS 链接恢复通过。局域网环境的部署记录见[集成文档](docs/integrations/wp-panel.md)。
 - 用户确认首版 1.0.0、GPL-2.0-or-later、作者 WP PANEL、贡献者 naibabiji，并将源站最低版本调整为 WordPress 6.5 / PHP 7.0。当前源码在源站 PHP 主、次版本与面板 PHP 8.3 不同时提示恢复兼容风险。WordPress.org 尚未提交，公网源站是否更新由用户决定。
 - 首版导出、站内随机工作目录、维护和保留方案已确认，详见 requirements。交换格式 v1 已确认随 1.0.0 首发冻结，更广的兼容矩阵见 pending-decisions。
-- RC13 已完成真实站点上传恢复，HTTPS 链接已完成一例公网实站恢复。RC16 已通过 HTTP/HTTPS 源端及 HTTP 目标站的隔离验收，实际 HTTP 源站到局域网的完整拉取待用户测试。
+- RC13 已完成真实站点上传恢复。RC17 已通过 HTTP/HTTPS 源端隔离回归，并与面板 `6162407` 完成纯 HTTP 端到端隔离复测。纯 HTTP 公网源站到局域网的完整拉取尚无实测记录。详见[验收文档](docs/acceptance.md)。
 - 当前活动卡：[数据库导出](docs/work/active/2026-11-23-bounded-sql-export.md)、[插件开发](docs/work/active/2026-11-22-plugin-development.md)。[初始化交接](docs/work/active/2026-11-22-plugin-bootstrap.md)保留历史决策。
 - 先读 AGENTS.md 的必读列表；跨项目事实见 integrations 文档，面板旧要求中“暂不创建插件”的历史措辞已被当前指令取代。
 

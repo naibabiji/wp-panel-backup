@@ -15,7 +15,7 @@
 
 - 插件无需面板账号、root、SSH 或 mysql CLI。管理员可为已完成备份生成仅限该备份的读取链接，由面板逐包拉取。
 - 不涉及 wp-panel-optimizer/Assistant，不写它们的项目，不自动复用其授权身份。
-- 面板现有普通数据库恢复功能保持，新站恢复复用其 root/CLI 核心和原过滤；该决定不要求源插件开发安全 SQL parser。
+- 面板恢复建站复用现有 SQL 流过滤、进度和错误处理，通过目标站点专用数据库账号导入。面板以管理权限建立空库和账号。详见[面板 ADR-0066](/home/luanc/Projects/go-panels/wp-panel/docs/decisions/0066-portable-import-scoped-database-client.md)。
 
 ## 格式和变更
 
@@ -33,10 +33,10 @@
 
 源站管理员对已完成备份生成可撤销的只读链接，最长 12 小时且受备份本身到期时间限制。新链接使旧链接失效。源端仅保存凭据摘要，按签发时所用的 HTTP 或 HTTPS 协议，根据凭据发送指定清单、索引或 ZIP。现有下载和交换格式沿用 v1。凭据放在可复制链接的片段中，面板使用请求头发送，凭据不进入归档。网站使用维护模式时，持有有效链接的面板仍可读取该备份的材料。撤销使后续请求失效，已打开的单个材料可传输完。
 
-测试包为 `wp-panel-backup-1.0.0-rc14.zip`（插件代码 `2b39c65`，SHA-256 `61473c51dcca8c2c9c284323b73d7a5ea83e401890ecea17ace7b0560de3d63f`）。面板提交 `4e87a7c` 已部署到局域网，健康检查 HTTP 200，四项核心服务正常，21 个站点的 HTTP 状态一致。 RC13 的 14.63 GiB 真站验收走本地下载与上传。RC14 恢复链接已通过隔离验证，公网源站到局域网的实站直拉待验证。
+RC13 完成 14.63 GiB 的真实站点下载及上传恢复。RC14（插件代码 `2b39c65`）加入恢复链接并通过隔离验证，配套面板 `4e87a7c` 曾部署到局域网，健康检查 HTTP 200，四项核心服务正常，21 个站点的 HTTP 状态一致。RC15 随后修正链接操作的界面状态和请求地址，并补充 Apache 提示。
 
-当前源插件测试包为 `wp-panel-backup-1.0.0-rc15.zip`，修正链接操作的界面状态和请求地址，并补充 Apache 提示。面板候选和交换格式沿用原约定。
+RC16 加入 HTTP 恢复链接。面板按链接协议连接，目标站按备份记录保留原协议。局域网先部署 `portable-restore-http-rc16-20261123-213331`，后部署 `portable-restore-live-download-progress-20261123-214948` 验证下载进度。详见[面板验收任务卡](/home/luanc/Projects/go-panels/wp-panel/docs/work/active/2026-11-22-wordpress-portable-backup-and-import.md)。
 
-当前测试组合为源插件 `wp-panel-backup-1.0.0-rc16.zip`，配套面板局域网部署 `portable-restore-http-rc16-20261123-213331`。安装包 SHA-256 为 `7b1e9287c6c29a9130acccafc44961af3bb299391a73daf5592143b867be8065`。面板按链接协议连接，目标网站按备份记录保留原协议。已通过一例实际 HTTPS 链接建站及 HTTP 隔离验收。实际 HTTP 源站到局域网的完整拉取待用户测试。
+当前插件候选为 `81fe448` 的 `wp-panel-backup-1.0.0-rc17.zip`，SHA-256 `e4eba170f0c0e8d189ca74095f3feb9106d1dcf444c3c6f0cfd2635bde4b86ce`。RC17 在隔离 WordPress 验证了 HTTP 和 HTTPS 的链接操作、材料读取和搬家维护。面板候选 `6162407` 已部署到 Debian 13 测试 VPS，并从已安装 RC17 的真实源站完成 HTTPS 拉取、重组、站点账号导入和发布站点，恢复的 59 张表与清单一致。
 
-最新复审包为 `wp-panel-backup-1.0.0-rc17.zip`，SHA-256 `e4eba170f0c0e8d189ca74095f3feb9106d1dcf444c3c6f0cfd2635bde4b86ce`。继续使用 v1 与原恢复链接。面板以目标站点数据库账号执行恢复建站导入，详见面板 ADR-0066。已部署候选记录仍见上段，RC17 审核修订尚未部署。
+RC17 与面板 `6162407` 已在隔离网络通过纯 HTTP 端到端验收，完成实际拉取、重组、导入及目标 WordPress 登录页检查。纯 HTTP 公网源站到局域网的完整拉取尚无实测记录。WordPress.org 提交与面板公开发布分别安排。

@@ -4,7 +4,9 @@
 
 **当前候选包：`dist/wp-panel-backup-1.0.0-rc17.zip`（支持 HTTP 与 HTTPS 恢复链接）。** WordPress.org 尚未提交。
 
-当前源码面向最低 WordPress 6.5、PHP 7.0。源站的 WordPress 版本还须支持其实际 PHP 版本，并满足 64 位 PHP、ZIP、原生 mysqli、InnoDB 和既有预检要求。许可证为 GPL-2.0-or-later。公开说明见 [readme.txt](readme.txt)。v1 格式已确认随首发冻结。上传恢复和 HTTPS 链接恢复已通过真实站点验收。RC16 已通过隔离 HTTP 站点测试，实际 HTTP 源站到局域网的完整拉取待用户测试。
+当前源码面向最低 WordPress 6.5、PHP 7.0。源站的 WordPress 版本还须支持其实际 PHP 版本，并满足 64 位 PHP、ZIP、原生 mysqli、InnoDB 和既有预检要求。许可证为 GPL-2.0-or-later。公开说明见 [readme.txt](readme.txt)。v1 格式已确认随首发冻结。
+
+真实站点已通过上传恢复和 HTTPS 链接恢复验收。源站安装 RC17，面板候选 `6162407` 在 Debian 13 测试 VPS 完成 HTTPS 实站复测。RC17 与面板 `6162407` 已通过纯 HTTP 端到端隔离验收。纯 HTTP 公网源站到局域网的完整拉取尚无实测记录。详见[验收记录](docs/acceptance.md)。
 
 源站不需要安装或连接 WP Panel；插件不承担恢复、域名替换、云存储或定时备份。
 
@@ -18,7 +20,7 @@
 - [常见场景验收](docs/acceptance.md)
 - [活动任务](docs/work/README.md)
 
-此目录是独立本地 Git 仓库，未设远程。
+项目开发仓库为私有 GitHub 仓库 [naibabiji/wp-panel-backup](https://github.com/naibabiji/wp-panel-backup)。
 
 ## 开发测试站使用
 
