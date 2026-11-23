@@ -63,3 +63,4 @@ The export contains a JSON manifest, a line-delimited JSON file index, and self-
 
 = 1.0.0 =
 * Adds site and database export, three backup modes, and whole-backup or separate file downloads.
+* Sends large downloads in bounded chunks to reduce memory use on hosts with PHP output buffering.

@@ -11,6 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 const BUNDLE_ARTIFACT = 'bundle.tar';
+const DOWNLOAD_CHUNK_BYTES = 1048576;
 const TAR_BLOCK_BYTES = 512;
 const TAR_MAX_MEMBER_BYTES = 8589934591;
 
@@ -55,9 +56,16 @@ function download_export() {
 				// TAR headers and padding are binary data.
 				echo tar_header( $item['name'], $item['size'], $item['mtime'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 			}
-			if ( $item['size'] !== fpassthru( $item['stream'] ) ) {
-				$complete = false;
-				break;
+			// Keep each write bounded even when PHP-FPM has output buffering enabled.
+			$remaining = $item['size'];
+			while ( $remaining > 0 ) {
+				$chunk = @fread( $item['stream'], min( DOWNLOAD_CHUNK_BYTES, $remaining ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread -- Read a bounded chunk from the open backup stream.
+				if ( false === $chunk || '' === $chunk ) {
+					$complete = false;
+					break 2;
+				}
+				echo $chunk; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Send the original binary bytes.
+				$remaining -= strlen( $chunk );
 			}
 			if ( $bundle ) {
 				echo str_repeat( "\0", tar_padding( $item['size'] ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
