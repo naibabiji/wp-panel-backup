@@ -2,7 +2,7 @@
 
 独立 WordPress 源站备份插件，供管理员将常规网站备份为可下载材料，后续由 WP Panel 从备份创建同域名网站。
 
-**当前候选包：`dist/wp-panel-backup-1.0.0-rc9.zip`（提交 `090de00`）。** WordPress.org 尚未提交，端到端恢复待单独验收。
+**当前候选包：`dist/wp-panel-backup-1.0.0-rc11.zip`（提交 `4ea34f2`）。** WordPress.org 尚未提交。
 
 当前源码面向最低 WordPress 6.5、PHP 7.0。源站的 WordPress 版本还须支持其实际 PHP 版本，并满足 64 位 PHP、ZIP、原生 mysqli、InnoDB 和既有预检要求。许可证为 GPL-2.0-or-later。公开说明见 [readme.txt](readme.txt)。两项目的备份格式复核和端到端恢复验收仍待进行。
 
@@ -22,7 +22,7 @@
 
 ## 开发测试站使用
 
-在 WordPress 后台进入「插件 → 安装插件 → 上传插件」，上传 `wp-panel-backup-1.0.0-rc9.zip` 并启用。安装包包含插件运行文件、公开说明和许可证。最低 WordPress 6.5、PHP 7.0。
+在 WordPress 后台进入「插件 → 安装插件 → 上传插件」，上传 `wp-panel-backup-1.0.0-rc11.zip` 并启用。安装包包含插件运行文件、公开说明和许可证。最低 WordPress 6.5、PHP 7.0。
 
 当前源码的备份页在源站 PHP 主、次版本与 WP PANEL 的 PHP 8.3 不同时显示兼容提示。提示不影响备份。恢复后如网站无法打开，可查看目标站 PHP 错误日志，并自行修复或使用 WP PANEL 的 AI 开发功能辅助排查。
 
@@ -43,6 +43,8 @@ location ^~ /wp-content/wp-panel-backup-storage- {
 RC8 修复 WooCommerce 等插件开启后台输出缓冲时的大文件下载内存问题。升级后可从备份列表重新下载尚在保留期内的备份。
 
 整套 TAR 下载名示例为 `18kcustoms.com-20261123-100935-a7f3c2e9.tar`，包含源站域名、站点时区的备份完成时间和备份 ID 前 8 位。旧备份升级后首次按新规则下载时使用当时的站点时区，之后重复下载沿用同名。
+
+RC11 减少数据库导出的 HTTP 请求次数和批次等待。对照 RC10 时，使用同一站点和同一备份方式，记录「导出数据库」到「生成 ZIP 分包」之间的耗时。
 
 临时维护异常时可在插件页面手动解除，搬家维护须使用「取消搬家并恢复原站」。后台无法访问且确需开放原站时，由主机管理员等当前备份请求结束后，移除该站工作目录中的 `maintenance.json`，再进后台确认任务状态。
 
