@@ -185,7 +185,13 @@ function apply_export_operation( $root, $operation, $id, $mode, $options, $zip_p
 		prepare_workspace( $root );
 		prepare_directory_indexes( $directory );
 	}
-	$job = advance_export( $directory, $job );
+	$steps_left = 'database' === $job['phase'] ? 8 : 1;
+	$table_index = $job['table_index'];
+	$deadline = microtime( true ) + 2;
+	do {
+		$job = advance_export( $directory, $job );
+		// Each step saves its checkpoint. Yield before starting another table.
+	} while ( --$steps_left > 0 && 'database' === $job['phase'] && $table_index === $job['table_index'] && microtime( true ) < $deadline );
 	if ( $was_running && 'complete' === $job['phase'] ) {
 		release_maintenance( $root, 'temporary', $job['id'] );
 		rotate_exports( $root, $job['id'] );

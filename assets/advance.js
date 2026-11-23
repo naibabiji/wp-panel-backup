@@ -64,7 +64,7 @@
 			update('error', progress.error);
 			spinner.hidden = !progress.running;
 			if (progress.running) {
-				timer = window.setTimeout(advance, 300);
+				timer = window.setTimeout(advance, progress.phase === 'database' ? 75 : 300);
 			} else if (progress.listUrl) {
 				window.location.replace(progress.listUrl);
 			} else {
