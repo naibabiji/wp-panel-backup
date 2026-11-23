@@ -60,10 +60,7 @@
 			}
 			panel.dataset.phase = progress.phase;
 			update('label', progress.label);
-			update('detail', progress.detail);
-			update('capacity', progress.capacity);
 			update('processed', progress.processed);
-			update('packages', progress.packages);
 			update('error', progress.error);
 			spinner.hidden = !progress.running;
 			if (progress.running) {

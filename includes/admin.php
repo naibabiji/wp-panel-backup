@@ -90,40 +90,17 @@ function export_progress( $job ) {
 		'scan' => __( '检查备份文件', 'wp-panel-backup' ), 'database' => __( '导出数据库', 'wp-panel-backup' ), 'package' => __( '生成 ZIP 分包', 'wp-panel-backup' ),
 		'complete' => __( '备份完成', 'wp-panel-backup' ), 'failed' => __( '备份失败', 'wp-panel-backup' ), 'cancelled' => __( '备份已取消', 'wp-panel-backup' ),
 	);
-	$detail = '';
-	if ( 'database' === $job['phase'] ) {
-		/* translators: 1: Number of exported database tables, 2: Total number of tables. */
-		$detail = sprintf( __( '数据库已导出 %1$d / %2$d 张表。', 'wp-panel-backup' ), $job['table_index'], count( $job['tables'] ) );
-	} elseif ( 'package' === $job['phase'] && ! empty( $job['pending_zip_bytes'] ) ) {
-		/* translators: Uncompressed data size collected for the current package. */
-		$detail = sprintf( __( '当前分包已收集 %s 数据。', 'wp-panel-backup' ), size_format( $job['pending_zip_bytes'], 1 ) );
-	}
-	$capacity = array();
-	if ( isset( $job['database_size'] ) ) {
-		/* translators: Estimated size of database tables and indexes. */
-		$capacity[] = sprintf( __( '数据库表占用约 %s', 'wp-panel-backup' ), size_format( $job['database_size'], 1 ) );
-	}
-	if ( isset( $job['file_size'] ) ) {
-		/* translators: Total size of included files before compression. */
-		$capacity[] = sprintf( __( '备份文件原始大小 %s', 'wp-panel-backup' ), size_format( $job['file_size'], 1 ) );
-	}
-	$processed = array();
-	if ( ! empty( $job['sql_offset'] ) ) {
-		/* translators: Size of the SQL export written so far. */
-		$processed[] = sprintf( __( '已导出 SQL %s', 'wp-panel-backup' ), size_format( $job['sql_offset'], 1 ) );
-	}
-	if ( isset( $job['file_processed_bytes'] ) ) {
-		/* translators: Uncompressed size of the site file blocks collected so far. */
-		$processed[] = sprintf( __( '已处理站点文件 %s', 'wp-panel-backup' ), size_format( $job['file_processed_bytes'], 1 ) );
-	}
+	$sql_bytes = $job['sql_offset'];
+	$file_bytes = $job['file_processed_bytes'] ?? 0;
+	// Older tasks may have read source files before the byte counter was added.
+	$file_size = ! isset( $job['file_processed_bytes'] ) && ! empty( $job['queue_offset'] )
+		? __( '未记录', 'wp-panel-backup' )
+		: size_format( $file_bytes, $file_bytes ? 1 : 0 );
 	return array(
 		'phase' => $job['phase'],
 		'label' => $labels[ $job['phase'] ],
-		'detail' => $detail,
-		'capacity' => implode( ' · ', $capacity ),
-		'processed' => implode( ' · ', $processed ),
-		/* translators: Relative file or directory path. */
-		'packages' => sprintf( __( '%d 个 ZIP 包已生成', 'wp-panel-backup' ), count( $job['packages'] ) ),
+		/* translators: 1: Size of SQL written so far. 2: Uncompressed size of site file blocks collected so far. */
+		'processed' => sprintf( __( '已导出 SQL %1$s · 已处理站点文件 %2$s', 'wp-panel-backup' ), size_format( $sql_bytes, $sql_bytes ? 1 : 0 ), $file_size ),
 		'running' => export_is_running( $job ),
 		'error' => 'failed' === $job['phase'] ? $job['error'] : '',
 	);
@@ -289,7 +266,7 @@ function render_export_controls( $list ) {
 		?>
 		<section class="wppb-card">
 			<h2><?php echo esc_html( $progress['label'] ); ?></h2>
-			<p class="wppb-meta"><?php echo esc_html( $modes[ $job['mode'] ?? 'normal' ] . __( ' · ', 'wp-panel-backup' ) . $progress['packages'] ); ?></p>
+			<p class="wppb-meta"><?php echo esc_html( $modes[ $job['mode'] ?? 'normal' ] ); ?></p>
 			<?php if ( $progress['error'] ) : ?>
 				<p class="wppb-notice wppb-error"><?php echo esc_html( $progress['error'] ); ?></p>
 			<?php endif; ?>
@@ -403,10 +380,7 @@ function render_active_export( $job, $modes ) {
 				<span class="wppb-progress-spinner" data-progress="spinner" aria-hidden="true" hidden></span>
 				<span data-progress="label"><?php echo esc_html( $progress['label'] ); ?></span>
 			</p>
-			<p class="wppb-meta" data-progress="detail" <?php if ( '' === $progress['detail'] ) : ?>hidden<?php endif; ?>><?php echo esc_html( $progress['detail'] ); ?></p>
-			<p class="wppb-meta" data-progress="capacity" <?php if ( '' === $progress['capacity'] ) : ?>hidden<?php endif; ?>><?php echo esc_html( $progress['capacity'] ); ?></p>
-			<p class="wppb-meta" data-progress="processed" <?php if ( '' === $progress['processed'] ) : ?>hidden<?php endif; ?>><?php echo esc_html( $progress['processed'] ); ?></p>
-			<p class="wppb-meta" data-progress="packages"><?php echo esc_html( $progress['packages'] ); ?></p>
+			<p class="wppb-meta" data-progress="processed"><?php echo esc_html( $progress['processed'] ); ?></p>
 		</div>
 		<p data-progress="hint" data-running-text="<?php echo esc_attr( $running_hint ); ?>" class="wppb-hint"><?php echo $run ? esc_html( $running_hint ) : esc_html__( '备份已暂停，可以从当前进度继续。', 'wp-panel-backup' ); ?></p>
 		<p data-progress="error" class="wppb-notice wppb-error" role="alert" hidden></p>

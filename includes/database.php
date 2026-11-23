@@ -37,22 +37,14 @@ function require_database_visibility() {
 	}
 }
 
-function export_database_size( $tables ) {
-	$statuses = array_column( database_rows( 'SHOW TABLE STATUS' ), null, 'Name' );
-	$size = 0;
+function validate_export_table_engines( $tables ) {
+	$statuses = array_column( database_rows( 'SHOW TABLE STATUS' ), 'Engine', 'Name' );
 	foreach ( $tables as $table ) {
-		$status = $statuses[ $table ] ?? array();
-		if ( 0 !== strcasecmp( 'InnoDB', $status['Engine'] ?? '' ) ) {
+		if ( 0 !== strcasecmp( 'InnoDB', $statuses[ $table ] ?? '' ) ) {
 			/* translators: Database table name. */
 			throw new RuntimeException( sprintf( __( '发现非 InnoDB 表，当前版本无法备份：%s', 'wp-panel-backup' ), $table ) );
 		}
-		if ( ! isset( $status['Data_length'], $status['Index_length'] ) ) {
-			$size = null;
-		} elseif ( null !== $size ) {
-			$size += (int) $status['Data_length'] + (int) $status['Index_length'];
-		}
 	}
-	return $size;
 }
 
 function table_definition( $name ) {
