@@ -16,6 +16,8 @@ WP PANEL Backup exports files and directories from the site root and all support
 
 Run a normal backup while the site remains available, use temporary maintenance during the backup, or keep the source site in maintenance for a migration. Keep the backup page open to process batches. You can leave the page and return to continue. A normal backup can capture files and database contents from different times while the site remains writable.
 
+Large sites can take longer to back up. The progress view shows estimated database table storage and, after scanning, the total uncompressed size of the files included in the backup.
+
 = Hosting requirements =
 
 * 64-bit PHP with the ZIP extension and a native mysqli connection.

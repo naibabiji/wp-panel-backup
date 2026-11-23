@@ -24,7 +24,7 @@ function validate_export_source() {
 	}
 	$source = inspect_source();
 	require_database_visibility();
-	$source['tables'] = export_table_list( $source );
+	$source['database_size'] = export_database_size( $source['tables'] );
 
 	if ( ! is_file( $source['root'] . '/wp-config.php' ) ) {
 		throw new RuntimeException( __( '未找到根目录 wp-config.php，本版无法携带供迁移参考的配置。', 'wp-panel-backup' ) );
@@ -68,8 +68,9 @@ function create_export( $workspace, $options, $mode, $zip_payload_mib ) {
 		'id'            => $id,
 		'mode'          => $mode,
 		'phase'         => 'scan',
-		'source'        => array_diff_key( $source, array( 'tables' => true ) ),
+		'source'        => array_diff_key( $source, array( 'tables' => true, 'database_size' => true ) ),
 		'tables'        => $source['tables'],
+		'database_size' => $source['database_size'],
 		'table_rows'    => array_fill( 0, count( $source['tables'] ), 0 ),
 		'table_index'   => 0,
 		'cursor'        => null,
@@ -96,14 +97,19 @@ function plan_export_files( $directory, &$job ) {
 	$excluded = array( $workspace_path => array( 'reason' => 'workspace' ) ) + ( $job['directory_exclusions'] ?? array() );
 	$excluded += array_fill_keys( CACHE_DROPIN_PATHS, array( 'reason' => 'cache-drop-in' ) );
 	$stream = open_output( $directory . '/queue.ndjson', 0 );
+	$size = 0;
 	try {
 		foreach ( source_entries( $root, $excluded ) as $entry ) {
 			write_bytes( $stream, encode_record( $entry ) );
+			if ( 'file' === $entry['kind'] ) {
+				$size += $entry['size'];
+			}
 		}
 		finish_output( $stream );
 	} finally {
 		fclose( $stream ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Release the native stream and any held lock.
 	}
+	$job['file_size'] = $size;
 	$job['phase'] = 'database';
 }
 
