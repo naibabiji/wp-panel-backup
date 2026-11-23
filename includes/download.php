@@ -34,7 +34,7 @@ function download_export() {
 	$name = wp_unslash( $_POST['artifact'] ?? '' ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 	$bundle = BUNDLE_ARTIFACT === $name;
 	try {
-		$items = with_workspace_lock( static function ( $root ) use ( $id, $name, $bundle ) {
+		list( $items, $filename ) = with_workspace_lock( static function ( $root ) use ( $id, $name, $bundle ) {
 			return prepare_download( export_directory( $root, $id ), $name, $bundle );
 		} );
 	} catch ( \Throwable $error ) {
@@ -49,7 +49,6 @@ function download_export() {
 		}
 	}
 
-	$filename = $bundle ? 'wp-panel-backup-' . $id . '.tar' : $name;
 	nocache_headers();
 	header( 'Content-Type: ' . ( $bundle ? 'application/x-tar' : 'application/octet-stream' ) );
 	header( 'X-Content-Type-Options: nosniff' );
@@ -138,15 +137,35 @@ function prepare_download( $directory, $name, $bundle ) {
 			$items[ count( $items ) - 1 ] += array( 'size' => $stat['size'], 'mtime' => $stat['mtime'] );
 		}
 
+		$filename = $name;
+		if ( $bundle ) {
+			// Older backups did not save the completion timestamp in the site's timezone.
+			if ( ! isset( $job['completed_local_time'] ) && ! empty( $job['completed_at'] ) ) {
+				$job['completed_local_time'] = wp_date( 'Ymd-His', $job['completed_at'] );
+			}
+			$filename = bundle_download_filename( $job, basename( $directory ) );
+		}
 		$job['downloads'][ $name ] = time();
 		write_record( $job_path, $job );
-		return $items;
+		return array( $items, $filename );
 	} catch ( \Throwable $error ) {
 		foreach ( $items as $item ) {
 			fclose( $item['stream'] ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Release the native stream and any held lock.
 		}
 		throw $error;
 	}
+}
+
+function bundle_download_filename( $job, $id ) {
+	$host = wp_parse_url( $job['source']['home'] ?? '', PHP_URL_HOST );
+	$completed = $job['completed_local_time'] ?? '';
+	if ( ! is_string( $host ) || ! preg_match( '/^[a-z0-9][a-z0-9.-]*$/D', $host ) || ! preg_match( '/^[0-9]{8}-[0-9]{6}$/D', $completed ) ) {
+		return 'wp-panel-backup-' . $id . '.tar';
+	}
+
+	$suffix = '-' . $completed . '-' . substr( $id, 0, 8 ) . '.tar';
+	$host = rtrim( substr( $host, 0, 255 - strlen( $suffix ) ), '.-' );
+	return $host . $suffix;
 }
 
 function tar_padding( $size ) {

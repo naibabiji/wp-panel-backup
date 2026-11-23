@@ -265,6 +265,7 @@ function pack_export_step( $directory, &$job ) {
 		if ( $finished && ! $members ) {
 			$job['phase'] = 'complete';
 			$job['completed_at'] = time();
+			$job['completed_local_time'] = wp_date( 'Ymd-His', $job['completed_at'] );
 			write_record( $directory . '/manifest.json', array(
 				'magic'          => 'wp-panel-backup-development',
 				'format_version' => 1,

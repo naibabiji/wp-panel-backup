@@ -65,3 +65,4 @@ The export contains a JSON manifest, a line-delimited JSON file index, and self-
 * Adds site and database export, three backup modes, and whole-backup or separate file downloads.
 * Sends large downloads in bounded chunks to reduce memory use on hosts with PHP output buffering.
 * Clears admin output buffers before sending backup downloads, including on WooCommerce sites.
+* Names whole-backup TAR downloads with the source domain, local completion time, and a short backup ID.
